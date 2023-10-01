@@ -1004,7 +1004,7 @@ def load_models_from_stable_diffusion_checkpoint(v2, ckpt_path, device="cpu", dt
     converted_unet_checkpoint = convert_ldm_unet_checkpoint(v2, state_dict, unet_config)
 
     unet = UNet2DConditionModel(**unet_config).to(device)
-    unet = torch.compile(unet, mode="reduce-overhead", fullgraph=True)
+    unet = torch.compile(unet, mode="max-autotune", fullgraph=True)
     info = unet.load_state_dict(converted_unet_checkpoint)
     print("loading u-net:", info)
 

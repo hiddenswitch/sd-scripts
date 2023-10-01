@@ -44,7 +44,7 @@ from library.sdxl_original_unet import SdxlUNet2DConditionModel
 
 UNET_NUM_BLOCKS_FOR_BLOCK_LR = 23
 
-
+torch.backends.cuda.matmul.allow_tf32 = True
 def get_block_params_to_optimize(unet: SdxlUNet2DConditionModel, block_lrs: List[float]) -> List[dict]:
     block_params = [[] for _ in range(len(block_lrs))]
 

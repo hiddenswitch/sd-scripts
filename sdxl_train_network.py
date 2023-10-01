@@ -10,7 +10,7 @@ except Exception:
 from library import sdxl_model_util, sdxl_train_util, train_util
 import train_network
 
-
+torch.backends.cuda.matmul.allow_tf32 = True
 class SdxlNetworkTrainer(train_network.NetworkTrainer):
     def __init__(self):
         super().__init__()

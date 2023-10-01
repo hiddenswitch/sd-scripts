@@ -78,7 +78,7 @@ CLIP_VISION_MODEL = "laion/CLIP-ViT-bigG-14-laion2B-39B-b160k"
 高速化のためのモジュール入れ替え
 """
 
-
+torch.backends.cuda.matmul.allow_tf32 = True
 def replace_unet_modules(unet: diffusers.models.unet_2d_condition.UNet2DConditionModel, mem_eff_attn, xformers, sdpa):
     if mem_eff_attn:
         print("Enable memory efficient attention for U-Net")

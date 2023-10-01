@@ -99,8 +99,8 @@ def load_control_net(v2, unet, model):
 
     ctrl_unet.to(unet.device, dtype=unet.dtype)
     ctrl_net.to(unet.device, dtype=unet.dtype)
-    ctrl_unet = torch.compile(ctrl_unet, mode="reduce-overhead", fullgraph=True)
-    ctrl_net = torch.compile(ctrl_net, mode="reduce-overhead", fullgraph=True)
+    ctrl_unet = torch.compile(ctrl_unet, mode="max-autotune", fullgraph=True)
+    ctrl_net = torch.compile(ctrl_net, mode="max-autotune", fullgraph=True)
     return ctrl_unet, ctrl_net
 
 
