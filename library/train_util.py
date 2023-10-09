@@ -3654,7 +3654,7 @@ def get_scheduler_fix(args, optimizer: Optimizer, num_processes: int):
     power = args.lr_scheduler_power
 
     lr_scheduler_kwargs = {}  # get custom lr_scheduler kwargs
-    if args.lr_scheduler_args is not None and len(args.lr_scheduler_args) > 0:
+    if args.lr_scheduler != 'constant' and args.lr_scheduler_args is not None and len(args.lr_scheduler_args) > 0:
         for arg in args.lr_scheduler_args:
             key, value = arg.split("=")
             value = ast.literal_eval(value)
