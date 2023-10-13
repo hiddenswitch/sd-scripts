@@ -2996,6 +2996,9 @@ def add_training_arguments(parser: argparse.ArgumentParser, support_dreambooth: 
             "dpmsolver",
             "dpmsolver++",
             "dpmsingle",
+            "k-dpmsolver++",
+            "sde-dpmsolver++",
+            "k-sde-dpmsolver++",
             "k_lms",
             "k_euler",
             "k_euler_a",
@@ -4507,9 +4510,13 @@ def sample_images_common(
         scheduler_cls = EulerDiscreteScheduler
     elif args.sample_sampler == "euler_a" or args.sample_sampler == "k_euler_a":
         scheduler_cls = EulerAncestralDiscreteScheduler
-    elif args.sample_sampler == "dpmsolver" or args.sample_sampler == "dpmsolver++":
+    elif args.sample_sampler == "dpmsolver" or args.sample_sampler == "dpmsolver++" or args.sample_sampler == 'k-dpmsolver++' or args.sample_sampler == "sde-dpmsolver++" or args.sample_sampler == "k-sde-dpmsolver++":
         scheduler_cls = DPMSolverMultistepScheduler
         sched_init_args["algorithm_type"] = args.sample_sampler
+        if args.sample_sampler == 'k-sde-dpmsolver++' or args.sample_sampler == 'k-dpmsolver++':
+            sched_init_args["algorithm_type"] = args.sample_sampler[2:]
+            sched_init_args["use_karras_sigmas"] = True
+        scheduler_module = diffusers.schedulers.scheduling_dpmsolver_multistep
     elif args.sample_sampler == "dpmsingle":
         scheduler_cls = DPMSolverSinglestepScheduler
     elif args.sample_sampler == "heun":

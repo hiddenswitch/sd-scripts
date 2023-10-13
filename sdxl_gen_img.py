@@ -1410,9 +1410,12 @@ def main(args):
         scheduler_cls = EulerAncestralDiscreteScheduler
         scheduler_module = diffusers.schedulers.scheduling_euler_ancestral_discrete
         has_clip_sample = False
-    elif args.sampler == "dpmsolver" or args.sampler == "dpmsolver++":
+    elif args.sampler == "dpmsolver" or args.sampler == "dpmsolver++" or args.sampler == 'k-dpmsolver++' or args.sampler == "sde-dpmsolver++" or args.sampler == "k-sde-dpmsolver++":
         scheduler_cls = DPMSolverMultistepScheduler
         sched_init_args["algorithm_type"] = args.sampler
+        if args.sampler == 'k-sde-dpmsolver++' or args.sampler == 'k-dpmsolver++':
+            sched_init_args["algorithm_type"] = args.sampler[2:]
+            sched_init_args["use_karras_sigmas"] = True
         scheduler_module = diffusers.schedulers.scheduling_dpmsolver_multistep
         has_clip_sample = False
     elif args.sampler == "dpmsingle":
@@ -2577,6 +2580,9 @@ def setup_parser() -> argparse.ArgumentParser:
             "dpmsolver",
             "dpmsolver++",
             "dpmsingle",
+            "k-dpmsolver++",
+            "sde-dpmsolver++",
+            "k-sde-dpmsolver++",
             "k_lms",
             "k_euler",
             "k_euler_a",
