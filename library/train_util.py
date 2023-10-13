@@ -44,6 +44,7 @@ from diffusers import (
     EulerAncestralDiscreteScheduler,
     DPMSolverMultistepScheduler,
     DPMSolverSinglestepScheduler,
+    DPMSolverSDEScheduler,
     LMSDiscreteScheduler,
     PNDMScheduler,
     DDIMScheduler,
@@ -4512,6 +4513,11 @@ def sample_images_common(
         sched_init_args["algorithm_type"] = args.sample_sampler
     elif args.sample_sampler == "dpmsingle":
         scheduler_cls = DPMSolverSinglestepScheduler
+    elif args.sample_sampler == "sde-dpmsolver++":
+        scheduler_cls = DPMSolverMultistepScheduler
+        sched_init_args["algorithm_type"] = args.sample_sampler
+        sched_init_args["use_karras_sigmas"] = True
+        sched_init_args["thresholding"] = True
     elif args.sample_sampler == "heun":
         scheduler_cls = HeunDiscreteScheduler
     elif args.sample_sampler == "dpm_2" or args.sample_sampler == "k_dpm_2":

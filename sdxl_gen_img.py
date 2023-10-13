@@ -34,6 +34,7 @@ from diffusers import (
     EulerAncestralDiscreteScheduler,
     DPMSolverMultistepScheduler,
     DPMSolverSinglestepScheduler,
+    DPMSolverSDEScheduler,
     LMSDiscreteScheduler,
     PNDMScheduler,
     DDIMScheduler,
@@ -1420,6 +1421,13 @@ def main(args):
         scheduler_module = diffusers.schedulers.scheduling_dpmsolver_singlestep
         has_clip_sample = False
         has_steps_offset = False
+    elif args.sampler == "sde-dpmsolver++":
+        scheduler_cls = DPMSolverMultistepScheduler
+        sched_init_args["algorithm_type"] = args.sampler
+        sched_init_args["use_karras_sigmas"] = True
+        sched_init_args["thresholding"] = True
+        scheduler_module = diffusers.schedulers.scheduling_dpmsolver_multistep
+        has_clip_sample = False
     elif args.sampler == "heun":
         scheduler_cls = HeunDiscreteScheduler
         scheduler_module = diffusers.schedulers.scheduling_heun_discrete
@@ -2576,6 +2584,7 @@ def setup_parser() -> argparse.ArgumentParser:
             "dpm_2_a",
             "dpmsolver",
             "dpmsolver++",
+            "sde-dpmsolver++",
             "dpmsingle",
             "k_lms",
             "k_euler",
