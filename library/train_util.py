@@ -3000,6 +3000,7 @@ def add_training_arguments(parser: argparse.ArgumentParser, support_dreambooth: 
             "k-dpmsolver++",
             "sde-dpmsolver++",
             "k-sde-dpmsolver++",
+            "lu-sde-dpmsolver++",
             "k_lms",
             "k_euler",
             "k_euler_a",
@@ -4511,15 +4512,17 @@ def sample_images_common(
         scheduler_cls = EulerDiscreteScheduler
     elif args.sample_sampler == "euler_a" or args.sample_sampler == "k_euler_a":
         scheduler_cls = EulerAncestralDiscreteScheduler
-    elif args.sample_sampler == "dpmsolver" or args.sample_sampler == "dpmsolver++" or args.sample_sampler == 'k-dpmsolver++' or args.sample_sampler == "sde-dpmsolver++" or args.sample_sampler == "k-sde-dpmsolver++":
+    elif args.sample_sampler == "dpmsolver" or args.sample_sampler == "dpmsolver++" or args.sample_sampler == 'k-dpmsolver++' or args.sample_sampler == "sde-dpmsolver++" or args.sample_sampler == "k-sde-dpmsolver++" or args.sample_sampler == 'lu-sde-dpmsolver++':
         scheduler_cls = DPMSolverMultistepScheduler
         sched_init_args["algorithm_type"] = args.sample_sampler
         if args.sample_sampler == 'k-sde-dpmsolver++' or args.sample_sampler == 'k-dpmsolver++':
             sched_init_args["algorithm_type"] = args.sample_sampler[2:]
             sched_init_args["use_karras_sigmas"] = True
-        if args.sample_sampler == 'k-sde-dpmsolver++' or args.sample_sampler == 'sde-dpmsolver++':
-            sched_init_args["euler_at_final"] = True
+        if args.sample_sampler == 'lu-sde-dpmsolver++':
+            sched_init_args["algorithm_type"] = args.sample_sampler[3:]
             sched_init_args["use_lu_lambdas"] = True
+        if args.sample_sampler == 'k-sde-dpmsolver++' or args.sample_sampler == 'sde-dpmsolver++' or args.sample_sampler == 'lu-sde-dpmsolver++':
+            sched_init_args["euler_at_final"] = True
         scheduler_module = diffusers.schedulers.scheduling_dpmsolver_multistep
     elif args.sample_sampler == "dpmsingle":
         scheduler_cls = DPMSolverSinglestepScheduler
