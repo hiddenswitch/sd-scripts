@@ -1416,6 +1416,9 @@ def main(args):
         if args.sampler == 'k-sde-dpmsolver++' or args.sampler == 'k-dpmsolver++':
             sched_init_args["algorithm_type"] = args.sampler[2:]
             sched_init_args["use_karras_sigmas"] = True
+        if args.sampler == 'k-sde-dpmsolver++' or args.sampler == 'sde-dpmsolver++':
+            sched_init_args["euler_at_final"] = True
+            sched_init_args["use_lu_lambdas"] = True
         scheduler_module = diffusers.schedulers.scheduling_dpmsolver_multistep
         has_clip_sample = False
     elif args.sampler == "dpmsingle":

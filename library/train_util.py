@@ -4517,6 +4517,9 @@ def sample_images_common(
         if args.sample_sampler == 'k-sde-dpmsolver++' or args.sample_sampler == 'k-dpmsolver++':
             sched_init_args["algorithm_type"] = args.sample_sampler[2:]
             sched_init_args["use_karras_sigmas"] = True
+        if args.sample_sampler == 'k-sde-dpmsolver++' or args.sample_sampler == 'sde-dpmsolver++':
+            sched_init_args["euler_at_final"] = True
+            sched_init_args["use_lu_lambdas"] = True
         scheduler_module = diffusers.schedulers.scheduling_dpmsolver_multistep
     elif args.sample_sampler == "dpmsingle":
         scheduler_cls = DPMSolverSinglestepScheduler
