@@ -2673,7 +2673,6 @@ def add_optimizer_arguments(parser: argparse.ArgumentParser):
         help="use Lion optimizer (requires lion-pytorch) / Lionオプティマイザを使う（ lion-pytorch のインストールが必要）",
     )
 
-    parser.add_argument("--learning_rate", type=float, default=2.0e-6, help="learning rate / 学習率")
     parser.add_argument(
         "--max_grad_norm", default=1.0, type=float, help="Max gradient norm, 0 for no clipping / 勾配正規化の最大norm、0でclippingを行わない"
     )
@@ -3421,7 +3420,7 @@ def get_optimizer(args, trainable_params):
             optimizer_kwargs[key] = value
     # print("optkwargs:", optimizer_kwargs)
 
-    lr = args.learning_rate
+    lr = args.unet_lr
     optimizer = None
 
     if optimizer_type == "Lion".lower():
@@ -3586,7 +3585,7 @@ def get_optimizer(args, trainable_params):
             print(f"relative_step is true / relative_stepがtrueです")
             if lr != 0.0:
                 print(f"learning rate is used as initial_lr / 指定したlearning rateはinitial_lrとして使用されます")
-            args.learning_rate = None
+            args.unet_lr = None
 
             # trainable_paramsがgroupだった時の処理：lrを削除する
             if type(trainable_params) == list and type(trainable_params[0]) == dict:

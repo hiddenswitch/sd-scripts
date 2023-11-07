@@ -331,14 +331,7 @@ class NetworkTrainer:
         accelerator.print("prepare optimizer, data loader etc.")
 
         # 後方互換性を確保するよ
-        try:
-            trainable_params = network.prepare_optimizer_params(args.text_encoder_lr, args.unet_lr, args.learning_rate)
-        except TypeError:
-            accelerator.print(
-                "Deprecated: use prepare_optimizer_params(text_encoder_lr, unet_lr, learning_rate) instead of prepare_optimizer_params(text_encoder_lr, unet_lr)"
-            )
-            trainable_params = network.prepare_optimizer_params(args.text_encoder_lr, args.unet_lr)
-
+        trainable_params = network.prepare_optimizer_params(args.text_encoder_lr, args.unet_lr)
         optimizer_name, optimizer_args, optimizer = train_util.get_optimizer(args, trainable_params)
 
         # dataloaderを準備する
@@ -492,7 +485,6 @@ class NetworkTrainer:
             "ss_session_id": session_id,  # random integer indicating which group of epochs the model came from
             "ss_training_started_at": training_started_at,  # unix timestamp
             "ss_output_name": args.output_name,
-            "ss_learning_rate": args.learning_rate,
             "ss_text_encoder_lr": args.text_encoder_lr,
             "ss_unet_lr": args.unet_lr,
             "ss_num_train_images": train_dataset_group.num_train_images,

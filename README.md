@@ -230,7 +230,7 @@ optimizer_type = "adafactor"
 optimizer_args = [ "scale_parameter=False", "relative_step=False", "warmup_init=False" ]
 lr_scheduler = "constant_with_warmup"
 lr_warmup_steps = 100
-learning_rate = 4e-7 # SDXL original learning rate
+unet_lr = 4e-7 # SDXL original learning rate
 ```
 
 ### Format of Textual Inversion embeddings for SDXL

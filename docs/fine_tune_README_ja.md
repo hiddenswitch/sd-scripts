@@ -59,7 +59,7 @@ accelerate launch --num_cpu_threads_per_process 1 fine_tune.py
     --output_name=<学習したモデル出力時のファイル名> 
     --dataset_config=<データ準備で作成した.tomlファイル> 
     --save_model_as=safetensors 
-    --learning_rate=5e-6 --max_train_steps=10000 
+    --unet_lr=5e-6 --max_train_steps=10000
     --use_8bit_adam --xformers --gradient_checkpointing
     --mixed_precision=fp16
 ```
