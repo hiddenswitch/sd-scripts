@@ -628,7 +628,7 @@ masterpiece, best quality, 1boy, in business suit, standing at street, looking b
     - AdaFactor : [Transformers AdaFactor](https://huggingface.co/docs/transformers/main_classes/optimizer_schedules)
     - 任意のオプティマイザ
 
-- `--learning_rate`
+- `--unet_lr`
 
     学習率を指定します。適切な学習率は学習スクリプトにより異なりますので、それぞれの説明を参照してください。
 

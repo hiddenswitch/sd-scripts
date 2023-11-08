@@ -26,7 +26,7 @@ accelerate launch --num_cpu_threads_per_process 1 train_textual_inversion.py
     --save_model_as=safetensors 
     --prior_loss_weight=1.0 
     --max_train_steps=1600 
-    --learning_rate=1e-6 
+    --unet_lr=1e-6
     --optimizer_type="AdamW8bit" 
     --xformers 
     --mixed_precision="fp16" 
@@ -66,7 +66,7 @@ tokenizerがすでに持っている単語（一般的な単語）は使用で�
 
 `dataset_config` に `.toml` ファイルを指定します。ファイル内でのバッチサイズ指定は、当初はメモリ消費を抑えるために `1` としてください。
 
-学習させるステップ数 `max_train_steps` を10000とします。学習率 `learning_rate` はここでは5e-6を指定しています。
+学習させるステップ数 `max_train_steps` を10000とします。学習率 `unet_lr` はここでは5e-6を指定しています。
 
 省メモリ化のため `mixed_precision="fp16"` を指定します（RTX30 シリーズ以降では `bf16` も指定できます。環境整備時にaccelerateに行った設定と合わせてください）。また `gradient_checkpointing` を指定します。
 

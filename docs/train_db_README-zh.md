@@ -41,7 +41,7 @@ accelerate launch --num_cpu_threads_per_process 1 train_db.py
     --save_model_as=safetensors 
     --prior_loss_weight=1.0 
     --max_train_steps=1600 
-    --learning_rate=1e-6 
+    --unet_lr=1e-6
     --optimizer_type="AdamW8bit" 
     --xformers 
     --mixed_precision="fp16" 
@@ -58,7 +58,7 @@ accelerate launch --num_cpu_threads_per_process 1 train_db.py
 
 `prior_loss_weight` 是正则化图像损失的权重。通常设为1.0。
 
-将要训练的步数 `max_train_steps` 设置为1600。在这里，学习率 `learning_rate` 被设置为1e-6。
+将要训练的步数 `max_train_steps` 设置为1600。在这里，学习率 `unet_lr` 被设置为1e-6。
 
 为了节省内存，设置 `mixed_precision="fp16"`（在 RTX30 系列及更高版本中也可以设置为 `bf16`）。同时指定 `gradient_checkpointing`。
 
@@ -107,7 +107,7 @@ accelerate launch --num_cpu_threads_per_process 1 train_db.py
     --prior_loss_weight=1.0 
     --resolution=512 
     --train_batch_size=1 
-    --learning_rate=1e-6 
+    --unet_lr=1e-6
     --max_train_steps=1600 
     --use_8bit_adam 
     --xformers 
@@ -150,7 +150,7 @@ accelerate launch --num_cpu_threads_per_process 8 train_db.py
     --reg_data_dir=<正则化图像的目录> 
     --output_dir=<训练后模型的输出目录>
     --resolution=768,512 
-    --train_batch_size=20 --learning_rate=5e-6 --max_train_steps=800 
+    --train_batch_size=20 --unet_lr=5e-6 --max_train_steps=800
     --use_8bit_adam --xformers --mixed_precision="bf16" 
     --save_every_n_epochs=1 --save_state --save_precision="bf16" 
     --logging_dir=logs 
