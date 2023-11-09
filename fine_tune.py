@@ -198,13 +198,13 @@ def train(args):
         m.requires_grad_(True)
 
     trainable_params = []
-    if args.learning_rate_te is None or not args.train_text_encoder:
+    if args.text_encoder_lr is None or not args.train_text_encoder:
         for m in training_models:
             trainable_params.extend(m.parameters())
     else:
         trainable_params = [
             {"params": list(unet.parameters()), "lr": args.learning_rate},
-            {"params": list(text_encoder.parameters()), "lr": args.learning_rate_te},
+            {"params": list(text_encoder.parameters()), "lr": args.text_encoder_lr},
         ]
 
     # 学習に必要なクラスを準備する
@@ -481,7 +481,7 @@ def setup_parser() -> argparse.ArgumentParser:
     parser.add_argument("--diffusers_xformers", action="store_true", help="use xformers by diffusers / Diffusersでxformersを使用する")
     parser.add_argument("--train_text_encoder", action="store_true", help="train text encoder / text encoderも学習する")
     parser.add_argument(
-        "--learning_rate_te",
+        "--text_encoder_lr",
         type=float,
         default=None,
         help="learning rate for text encoder, default is same as unet / Text Encoderの学習率、デフォルトはunetと同じ",

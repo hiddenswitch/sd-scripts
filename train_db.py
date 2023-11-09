@@ -167,13 +167,13 @@ def train(args):
     # 学習に必要なクラスを準備する
     accelerator.print("prepare optimizer, data loader etc.")
     if train_text_encoder:
-        if args.learning_rate_te is None:
+        if args.text_encoder_lr is None:
             # wightout list, adamw8bit is crashed
             trainable_params = list(itertools.chain(unet.parameters(), text_encoder.parameters()))
         else:
             trainable_params = [
                 {"params": list(unet.parameters()), "lr": args.learning_rate},
-                {"params": list(text_encoder.parameters()), "lr": args.learning_rate_te},
+                {"params": list(text_encoder.parameters()), "lr": args.text_encoder_lr},
             ]
     else:
         trainable_params = unet.parameters()
@@ -466,7 +466,7 @@ def setup_parser() -> argparse.ArgumentParser:
     custom_train_functions.add_custom_train_arguments(parser)
 
     parser.add_argument(
-        "--learning_rate_te",
+        "--text_encoder_lr",
         type=float,
         default=None,
         help="learning rate for text encoder, default is same as unet / Text Encoderの学習率、デフォルトはunetと同じ",

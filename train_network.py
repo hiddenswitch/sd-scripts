@@ -738,7 +738,6 @@ class NetworkTrainer:
 
         # training loop
         epoch_loss_map = {}
-        epoch_weight_map = {}
         for epoch in range(num_train_epochs):
             accelerator.print(f"\nepoch {epoch+1}/{num_train_epochs}")
             current_epoch.value = epoch + 1
@@ -859,7 +858,13 @@ class NetworkTrainer:
                 current_loss = loss.detach().item()
                 loss_recorder.add(epoch=epoch, step=step, loss=current_loss)
                 avr_loss: float = loss_recorder.moving_average
-                logs = {"avr_loss": avr_loss}  # , "lr": lr_scheduler.get_last_lr()[0]}
+                logs = {"avr_loss": avr_loss}
+
+                if args.stop_on_weight_norm or args.show_weight_norm:
+                    weight_norms = network.calculate_average_norms(accelerator.device)
+                    weight_norm = sum(weight_norms) / len(weight_norms)
+                    logs['weight_norm'] = weight_norm  # , "lr": lr_scheduler.get_last_lr()[0]}
+
                 progress_bar.set_postfix(**logs)
 
                 if args.scale_weight_norms:
@@ -919,6 +924,10 @@ class NetworkTrainer:
                 if is_decreasing(last_losses, args.stop_on_loss_delta) and last_losses[-1] < args.stop_on_loss:
                     break;
 
+            # If we need to stop on reaching the weight to prevent overfitting
+            if args.stop_on_weight_norm and weight_norm > args.stop_on_weight_norm:
+                break
+
             # end of epoch
 
         # metadata["ss_epoch"] = str(num_train_epochs)
@@ -965,6 +974,8 @@ def setup_parser() -> argparse.ArgumentParser:
     parser.add_argument("--stop_on_loss_epochs", type=int, default=3, help="How many last epochs we use for detect loss to stop")
     parser.add_argument("--stop_on_loss_window", type=int, default=3, help="How many epochs we use for detect moving average for checking loss we compare")
     parser.add_argument("--stop_on_loss_delta", type=float, default=0.001, help="Delta that we use to detect increasing or decreaseing")
+    parser.add_argument("--show_weight_norm", default=False, action="store_true", help="Show we calculate and show average weight norm for debugging purpose, it takes some computation time")
+    parser.add_argument("--stop_on_weight_norm", type=float, default=None, help="Stop learning when we reached average weight norm")
     parser.add_argument("--network_weights", type=str, default=None, help="pretrained weights for network / 学習するネットワークの初期重み")
     parser.add_argument("--network_module", type=str, default=None, help="network module to train / 学習対象のネットワークのモジュール")
     parser.add_argument(
