@@ -108,7 +108,7 @@ from tools.original_control_net import ControlNetInfo
 from library.original_unet import UNet2DConditionModel
 from library.original_unet import FlashAttentionFunction
 
-from XTI_hijack import unet_forward_XTI, downblock_forward_XTI, upblock_forward_XTI
+from .XTI_hijack import unet_forward_XTI, downblock_forward_XTI, upblock_forward_XTI
 
 # scheduler:
 SCHEDULER_LINEAR_START = 0.00085

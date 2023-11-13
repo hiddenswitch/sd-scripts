@@ -8,7 +8,7 @@ try:
 except Exception:
     pass
 from library import sdxl_model_util, sdxl_train_util, train_util
-import train_network
+from . import train_network
 
 
 class SdxlNetworkTrainer(train_network.NetworkTrainer):
