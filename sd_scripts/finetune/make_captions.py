@@ -15,6 +15,8 @@ from torchvision.transforms.functional import InterpolationMode
 sys.path.append(os.path.dirname(__file__))
 from blip.blip import blip_decoder
 import library.train_util as train_util
+import pkg_resources
+
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -83,7 +85,10 @@ def main(args):
     print(f"found {len(image_paths)} images.")
 
     print(f"loading BLIP caption: {args.caption_weights}")
-    model = blip_decoder(pretrained=args.caption_weights, image_size=IMAGE_SIZE, vit="large", med_config="./blip/med_config.json")
+
+    med_config_path = pkg_resources.resource_filename('sd_scripts.finetune.blip', 'med_config.json')
+    # model = blip_decoder(pretrained=args.caption_weights, image_size=IMAGE_SIZE, vit="large", med_config="./blip/med_config.json")
+    model = blip_decoder(pretrained=args.caption_weights, image_size=IMAGE_SIZE, vit="large", med_config=med_config_path)
     model.eval()
     model = model.to(DEVICE)
     print("BLIP loaded")
