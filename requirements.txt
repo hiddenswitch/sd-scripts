@@ -1,5 +1,5 @@
 accelerate
-transformers
+transformers==4.30.2
 diffusers[torch]
 ftfy
 # albumentations
@@ -28,4 +28,5 @@ huggingface-hub
 # this is for onnx: 
 # protobuf
 # open clip for SDXL
-open-clip-torch
+open-clip-torch==2.20.0
+xformers==0.0.20
