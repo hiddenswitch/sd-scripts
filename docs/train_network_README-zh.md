@@ -65,7 +65,7 @@ accelerate launch --num_cpu_threads_per_process 1 train_network.py
     --save_model_as=safetensors 
     --prior_loss_weight=1.0 
     --max_train_steps=400 
-    --learning_rate=1e-4 
+    --unet_lr=1e-4
     --optimizer_type="AdamW8bit" 
     --xformers 
     --mixed_precision="fp16" 
@@ -96,9 +96,9 @@ LoRA的模型将会被保存在通过`--output_dir`选项指定的文件夹中�
 * `--network_train_text_encoder_only`
   * 仅启用与Text Encoder相关的LoRA模块。可能会期望Textual Inversion效果。
 * `--unet_lr`
-  * 当在U-Net相关的LoRA模块中使用与常规学习率（由`--learning_rate`选项指定）不同的学习率时，应指定此选项。
+  * 当在U-Net相关的LoRA模块中使用与常规学习率（由`--unet_lr`选项指定）不同的学习率时，应指定此选项。
 * `--text_encoder_lr`
-  * 当在Text Encoder相关的LoRA模块中使用与常规学习率（由`--learning_rate`选项指定）不同的学习率时，应指定此选项。可能最好将Text Encoder的学习率稍微降低（例如5e-5）。
+  * 当在Text Encoder相关的LoRA模块中使用与常规学习率（由`--unet_lr`选项指定）不同的学习率时，应指定此选项。可能最好将Text Encoder的学习率稍微降低（例如5e-5）。
 * `--network_args`
   * 可以指定多个参数。将在下面详细说明。
 

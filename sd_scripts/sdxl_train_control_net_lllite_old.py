@@ -44,7 +44,7 @@ from library.custom_train_functions import (
 )
 import networks.control_net_lllite as control_net_lllite
 
-
+torch.backends.cuda.matmul.allow_tf32 = True
 # TODO 他のスクリプトと共通化する
 def generate_step_logs(args: argparse.Namespace, current_loss, avr_loss, lr_scheduler):
     logs = {

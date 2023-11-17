@@ -1015,7 +1015,7 @@ class LoRANetwork(torch.nn.Module):
         return lr_weight
 
     # 二つのText Encoderに別々の学習率を設定できるようにするといいかも
-    def prepare_optimizer_params(self, text_encoder_lr, unet_lr, default_lr):
+    def prepare_optimizer_params(self, text_encoder_lr, unet_lr):
         self.requires_grad_(True)
         all_params = []
 
@@ -1047,8 +1047,6 @@ class LoRANetwork(torch.nn.Module):
 
                     if unet_lr is not None:
                         param_data["lr"] = unet_lr * self.get_lr_weight(block_loras[0])
-                    elif default_lr is not None:
-                        param_data["lr"] = default_lr * self.get_lr_weight(block_loras[0])
                     if ("lr" in param_data) and (param_data["lr"] == 0):
                         continue
                     all_params.append(param_data)
@@ -1181,12 +1179,11 @@ class LoRANetwork(torch.nn.Module):
             org_module._lora_restored = False
             lora.enabled = False
 
-    def apply_max_norm_regularization(self, max_norm_value, device):
+    def calculate_average_norms(self, device):
         downkeys = []
         upkeys = []
         alphakeys = []
         norms = []
-        keys_scaled = 0
 
         state_dict = self.state_dict()
         for key in state_dict.keys():
@@ -1210,8 +1207,18 @@ class LoRANetwork(torch.nn.Module):
                 updown = up @ down
 
             updown *= scale
+            norm = updown.norm()
+            norms.append(norm.item())
 
-            norm = updown.norm().clamp(min=max_norm_value / 2)
+        return norms
+
+    def apply_max_norm_regularization(self, max_norm_value, device):
+        keys_scaled = 0
+        norms = self.calculate_average_norms(device)
+
+        state_dict = self.state_dict()
+        for i in range(len(norms)):
+            norm = norms[i].clamp(min=max_norm_value / 2)
             desired = torch.clamp(norm, max=max_norm_value)
             ratio = desired.cpu() / norm.cpu()
             sqrt_ratio = ratio**0.5
@@ -1220,6 +1227,6 @@ class LoRANetwork(torch.nn.Module):
                 state_dict[upkeys[i]] *= sqrt_ratio
                 state_dict[downkeys[i]] *= sqrt_ratio
             scalednorm = updown.norm() * ratio
-            norms.append(scalednorm.item())
+            norms[i] = scalednorm.item()
 
         return keys_scaled, sum(norms) / len(norms), max(norms)

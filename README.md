@@ -230,7 +230,7 @@ optimizer_type = "adafactor"
 optimizer_args = [ "scale_parameter=False", "relative_step=False", "warmup_init=False" ]
 lr_scheduler = "constant_with_warmup"
 lr_warmup_steps = 100
-learning_rate = 4e-7 # SDXL original learning rate
+unet_lr = 4e-7 # SDXL original learning rate
 ```
 
 ### Format of Textual Inversion embeddings for SDXL
@@ -255,12 +255,12 @@ ControlNet-LLLite, a novel method for ControlNet with SDXL, is added. See [docum
   - Example:
     - `--learning_rate 1e-6`: train U-Net only
     - `--train_text_encoder --learning_rate 1e-6`: train U-Net and two Text Encoders with the same learning rate (same as the previous version)
-    - `--train_text_encoder --learning_rate 1e-6 --learning_rate_te1 1e-6 --learning_rate_te2 1e-6`: train U-Net and two Text Encoders with the different learning rates
-    - `--train_text_encoder --learning_rate 0 --learning_rate_te1 1e-6 --learning_rate_te2 1e-6`: train two Text Encoders only 
-    - `--train_text_encoder --learning_rate 1e-6 --learning_rate_te1 1e-6 --learning_rate_te2 0`: train U-Net and one Text Encoder only
-    - `--train_text_encoder --learning_rate 0 --learning_rate_te1 0 --learning_rate_te2 1e-6`: train one Text Encoder only
+    - `--train_text_encoder --learning_rate 1e-6 --text_encoder1_lr 1e-6 --text_encoder2_lr 1e-6`: train U-Net and two Text Encoders with the different learning rates
+    - `--train_text_encoder --learning_rate 0 --text_encoder1_lr 1e-6 --text_encoder2_lr 1e-6`: train two Text Encoders only
+    - `--train_text_encoder --learning_rate 1e-6 --text_encoder1_lr 1e-6 --text_encoder2_lr 0`: train U-Net and one Text Encoder only
+    - `--train_text_encoder --learning_rate 0 --text_encoder1_lr 0 --text_encoder2_lr 1e-6`: train one Text Encoder only
 
-- `train_db.py` and `fine_tune.py` now support different learning rates for Text Encoder. Specify with `--learning_rate_te` option. 
+- `train_db.py` and `fine_tune.py` now support different learning rates for Text Encoder. Specify with `--text_encoder_lr` option.
   - To train Text Encoder with `fine_tune.py`, specify `--train_text_encoder` option too. `train_db.py` trains Text Encoder by default.
 
 - Fixed the bug that Text Encoder is not trained when block lr is specified in `sdxl_train.py`.
@@ -273,7 +273,7 @@ ControlNet-LLLite, a novel method for ControlNet with SDXL, is added. See [docum
 - Other bug fixes and improvements.
 
 - `sdxl_train.py` で、二つのText Encoderそれぞれに独立した学習率が指定できるようになりました。サンプルは上の英語版を参照してください。
-- `train_db.py` および `fine_tune.py` で Text Encoder に別の学習率を指定できるようになりました。`--learning_rate_te` オプションで指定してください。
+- `train_db.py` および `fine_tune.py` で Text Encoder に別の学習率を指定できるようになりました。`--text_encoder_lr` オプションで指定してください。
   - `fine_tune.py` で Text Encoder を学習するには `--train_text_encoder` オプションをあわせて指定してください。`train_db.py` はデフォルトで学習します。
 - `sdxl_train.py` で block lr を指定すると Text Encoder が学習されない不具合を修正しました。
 - Debiased Estimation loss が各学習スクリプトに追加されました。sdbsd 氏に感謝します。

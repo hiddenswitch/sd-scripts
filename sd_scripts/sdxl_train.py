@@ -44,7 +44,7 @@ from library.sdxl_original_unet import SdxlUNet2DConditionModel
 
 UNET_NUM_BLOCKS_FOR_BLOCK_LR = 23
 
-
+torch.backends.cuda.matmul.allow_tf32 = True
 def get_block_params_to_optimize(unet: SdxlUNet2DConditionModel, block_lrs: List[float]) -> List[dict]:
     block_params = [[] for _ in range(len(block_lrs))]
 
@@ -266,7 +266,7 @@ def train(args):
     # 学習を準備する：モデルを適切な状態にする
     if args.gradient_checkpointing:
         unet.enable_gradient_checkpointing()
-    train_unet = args.learning_rate > 0
+    train_unet = args.unet_lr > 0
     train_text_encoder1 = False
     train_text_encoder2 = False
 
@@ -276,8 +276,8 @@ def train(args):
         if args.gradient_checkpointing:
             text_encoder1.gradient_checkpointing_enable()
             text_encoder2.gradient_checkpointing_enable()
-        lr_te1 = args.learning_rate_te1 if args.learning_rate_te1 is not None else args.learning_rate  # 0 means not train
-        lr_te2 = args.learning_rate_te2 if args.learning_rate_te2 is not None else args.learning_rate  # 0 means not train
+        lr_te1 = args.text_encoder1_lr
+        lr_te2 = args.text_encoder2_lr
         train_text_encoder1 = lr_te1 > 0
         train_text_encoder2 = lr_te2 > 0
 
@@ -326,16 +326,16 @@ def train(args):
     if train_unet:
         training_models.append(unet)
         if block_lrs is None:
-            params_to_optimize.append({"params": list(unet.parameters()), "lr": args.learning_rate})
+            params_to_optimize.append({"params": list(unet.parameters()), "lr": args.unet_lr})
         else:
             params_to_optimize.extend(get_block_params_to_optimize(unet, block_lrs))
 
     if train_text_encoder1:
         training_models.append(text_encoder1)
-        params_to_optimize.append({"params": list(text_encoder1.parameters()), "lr": args.learning_rate_te1 or args.learning_rate})
+        params_to_optimize.append({"params": list(text_encoder1.parameters()), "lr": args.text_encoder1_lr})
     if train_text_encoder2:
         training_models.append(text_encoder2)
-        params_to_optimize.append({"params": list(text_encoder2.parameters()), "lr": args.learning_rate_te2 or args.learning_rate})
+        params_to_optimize.append({"params": list(text_encoder2.parameters()), "lr": args.text_encoder2_lr})
 
     # calculate number of trainable parameters
     n_params = 0
@@ -736,13 +736,13 @@ def setup_parser() -> argparse.ArgumentParser:
     sdxl_train_util.add_sdxl_training_arguments(parser)
 
     parser.add_argument(
-        "--learning_rate_te1",
+        "--text_encoder1_lr",
         type=float,
         default=None,
         help="learning rate for text encoder 1 (ViT-L) / text encoder 1 (ViT-L)の学習率",
     )
     parser.add_argument(
-        "--learning_rate_te2",
+        "--text_encoder2_lr",
         type=float,
         default=None,
         help="learning rate for text encoder 2 (BiG-G) / text encoder 2 (BiG-G)の学習率",

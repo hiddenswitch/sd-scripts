@@ -59,7 +59,7 @@ accelerate launch --num_cpu_threads_per_process 1 fine_tune.py
     --output_name=<学習したモデル出力時のファイル名> 
     --dataset_config=<データ準備で作成した.tomlファイル> 
     --save_model_as=safetensors 
-    --learning_rate=5e-6 --max_train_steps=10000 
+    --unet_lr=5e-6 --max_train_steps=10000
     --use_8bit_adam --xformers --gradient_checkpointing
     --mixed_precision=fp16
 ```
@@ -72,7 +72,7 @@ accelerate launch --num_cpu_threads_per_process 1 fine_tune.py
 
 `dataset_config` に `.toml` ファイルを指定します。ファイル内でのバッチサイズ指定は、当初はメモリ消費を抑えるために `1` としてください。
 
-学習させるステップ数 `max_train_steps` を10000とします。学習率 `learning_rate` はここでは5e-6を指定しています。
+学習させるステップ数 `max_train_steps` を10000とします。学習率 `unet_lr` はここでは5e-6を指定しています。
 
 省メモリ化のため `mixed_precision="fp16"` を指定します（RTX30 シリーズ以降では `bf16` も指定できます。環境整備時にaccelerateに行った設定と合わせてください）。また `gradient_checkpointing` を指定します。
 
@@ -109,7 +109,7 @@ accelerate launch --num_cpu_threads_per_process 1 fine_tune.py
     --train_data_dir=train_data 
     --output_dir=fine_tuned 
     --shuffle_caption 
-    --train_batch_size=1 --learning_rate=5e-6 --max_train_steps=10000 
+    --train_batch_size=1 --unet_lr=5e-6 --max_train_steps=10000
     --use_8bit_adam --xformers --gradient_checkpointing
     --mixed_precision=bf16
     --save_every_n_epochs=4

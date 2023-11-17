@@ -13,7 +13,7 @@ from library import sdxl_model_util, sdxl_train_util, train_util
 
 from . import train_textual_inversion
 
-
+torch.backends.cuda.matmul.allow_tf32 = True
 class SdxlTextualInversionTrainer(train_textual_inversion.TextualInversionTrainer):
     def __init__(self):
         super().__init__()

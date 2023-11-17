@@ -9,6 +9,7 @@ import time
 import json
 from multiprocessing import Value
 import toml
+import pandas as pd
 
 from tqdm import tqdm
 import torch
@@ -331,14 +332,7 @@ class NetworkTrainer:
         accelerator.print("prepare optimizer, data loader etc.")
 
         # 後方互換性を確保するよ
-        try:
-            trainable_params = network.prepare_optimizer_params(args.text_encoder_lr, args.unet_lr, args.learning_rate)
-        except TypeError:
-            accelerator.print(
-                "Deprecated: use prepare_optimizer_params(text_encoder_lr, unet_lr, learning_rate) instead of prepare_optimizer_params(text_encoder_lr, unet_lr)"
-            )
-            trainable_params = network.prepare_optimizer_params(args.text_encoder_lr, args.unet_lr)
-
+        trainable_params = network.prepare_optimizer_params(args.text_encoder_lr, args.unet_lr)
         optimizer_name, optimizer_args, optimizer = train_util.get_optimizer(args, trainable_params)
 
         # dataloaderを準備する
@@ -492,7 +486,6 @@ class NetworkTrainer:
             "ss_session_id": session_id,  # random integer indicating which group of epochs the model came from
             "ss_training_started_at": training_started_at,  # unix timestamp
             "ss_output_name": args.output_name,
-            "ss_learning_rate": args.learning_rate,
             "ss_text_encoder_lr": args.text_encoder_lr,
             "ss_unet_lr": args.unet_lr,
             "ss_num_train_images": train_dataset_group.num_train_images,
@@ -744,6 +737,7 @@ class NetworkTrainer:
                 os.remove(old_ckpt_file)
 
         # training loop
+        epoch_loss_map = {}
         for epoch in range(num_train_epochs):
             accelerator.print(f"\nepoch {epoch+1}/{num_train_epochs}")
             current_epoch.value = epoch + 1
@@ -864,7 +858,13 @@ class NetworkTrainer:
                 current_loss = loss.detach().item()
                 loss_recorder.add(epoch=epoch, step=step, loss=current_loss)
                 avr_loss: float = loss_recorder.moving_average
-                logs = {"avr_loss": avr_loss}  # , "lr": lr_scheduler.get_last_lr()[0]}
+                logs = {"avr_loss": avr_loss}
+
+                if args.stop_on_weight_norm or args.show_weight_norm:
+                    weight_norms = network.calculate_average_norms(accelerator.device)
+                    weight_norm = sum(weight_norms) / len(weight_norms)
+                    logs['weight_norm'] = weight_norm  # , "lr": lr_scheduler.get_last_lr()[0]}
+
                 progress_bar.set_postfix(**logs)
 
                 if args.scale_weight_norms:
@@ -899,6 +899,34 @@ class NetworkTrainer:
                         train_util.save_and_remove_state_on_epoch_end(args, accelerator, epoch + 1)
 
             self.sample_images(accelerator, args, epoch + 1, global_step, accelerator.device, vae, tokenizer, text_encoder, unet)
+
+            epoch_loss_map[epoch] = avr_loss
+            # Validate if we have stop_on_loss and early exit
+            if args.stop_on_loss is not None and global_step >= args.stop_on_loss_steps and len(epoch_loss_map) >= args.stop_on_loss_epochs:
+                # Convert the dictionary to a pandas Series
+                loss_series = pd.Series(epoch_loss_map)
+
+                # Compute the moving average with a window size of your choice. Here we are taking a window size of 3.
+                smoothed = loss_series.rolling(window=args.stop_on_loss_window).mean()
+
+                # Getting the last 3 epoch losses
+                last_losses = list(smoothed)[-args.stop_on_loss_epochs:]
+
+                # Calculating the average of the last 3 epoch losses
+                avg_last_losses = sum(last_losses) / len(last_losses)
+
+                # If average of last three losses is less than the stop_on_loss parameter, break the loop
+                if avg_last_losses < args.stop_on_loss:
+                    break;
+
+                # Combine another strategy also, not just average
+                # Check if losses are gradually decreasing
+                if is_decreasing(last_losses, args.stop_on_loss_delta) and last_losses[-1] < args.stop_on_loss:
+                    break;
+
+            # If we need to stop on reaching the weight to prevent overfitting
+            if args.stop_on_weight_norm and weight_norm > args.stop_on_weight_norm:
+                break
 
             # end of epoch
 
@@ -941,7 +969,13 @@ def setup_parser() -> argparse.ArgumentParser:
 
     parser.add_argument("--unet_lr", type=float, default=None, help="learning rate for U-Net / U-Netの学習率")
     parser.add_argument("--text_encoder_lr", type=float, default=None, help="learning rate for Text Encoder / Text Encoderの学習率")
-
+    parser.add_argument("--stop_on_loss", type=float, default=None, help="when we should stop trainig")
+    parser.add_argument("--stop_on_loss_steps", type=int, default=1000, help="When we start to trigger logic, min steps required")
+    parser.add_argument("--stop_on_loss_epochs", type=int, default=3, help="How many last epochs we use for detect loss to stop")
+    parser.add_argument("--stop_on_loss_window", type=int, default=3, help="How many epochs we use for detect moving average for checking loss we compare")
+    parser.add_argument("--stop_on_loss_delta", type=float, default=0.001, help="Delta that we use to detect increasing or decreaseing")
+    parser.add_argument("--show_weight_norm", default=False, action="store_true", help="Show we calculate and show average weight norm for debugging purpose, it takes some computation time")
+    parser.add_argument("--stop_on_weight_norm", type=float, default=None, help="Stop learning when we reached average weight norm")
     parser.add_argument("--network_weights", type=str, default=None, help="pretrained weights for network / 学習するネットワークの初期重み")
     parser.add_argument("--network_module", type=str, default=None, help="network module to train / 学習対象のネットワークのモジュール")
     parser.add_argument(
@@ -1000,6 +1034,14 @@ def setup_parser() -> argparse.ArgumentParser:
         help="do not use fp16/bf16 VAE in mixed precision (use float VAE) / mixed precisionでも fp16/bf16 VAEを使わずfloat VAEを使う",
     )
     return parser
+
+
+# Check if losses are gradually decreasing
+def is_decreasing(list, min_delta=0.001):
+    return all(list[i] - list[i + 1] >= min_delta for i in range(len(list) - 1))
+
+def is_increasing(list, min_delta=0.001):
+    return all(list[i + 1] - list[i] >= min_delta for i in range(len(list) - 1))
 
 
 if __name__ == "__main__":

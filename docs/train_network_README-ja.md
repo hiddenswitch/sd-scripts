@@ -66,7 +66,7 @@ accelerate launch --num_cpu_threads_per_process 1 train_network.py
     --save_model_as=safetensors 
     --prior_loss_weight=1.0 
     --max_train_steps=400 
-    --learning_rate=1e-4 
+    --unet_lr=1e-4
     --optimizer_type="AdamW8bit" 
     --xformers 
     --mixed_precision="fp16" 
@@ -97,9 +97,9 @@ accelerate launch --num_cpu_threads_per_process 1 train_network.py
 * `--network_train_text_encoder_only`
   * Text Encoderに関連するLoRAモジュールのみ有効とします。Textual Inversion的な効果が期待できるかもしれません。
 * `--unet_lr`
-  * U-Netに関連するLoRAモジュールに、通常の学習率（--learning_rateオプションで指定）とは異なる学習率を使う時に指定します。
+  * U-Netに関連するLoRAモジュールに、通常の学習率（--unet_lrオプションで指定）とは異なる学習率を使う時に指定します。
 * `--text_encoder_lr`
-  * Text Encoderに関連するLoRAモジュールに、通常の学習率（--learning_rateオプションで指定）とは異なる学習率を使う時に指定します。Text Encoderのほうを若干低めの学習率（5e-5など）にしたほうが良い、という話もあるようです。
+  * Text Encoderに関連するLoRAモジュールに、通常の学習率（--unet_lrオプションで指定）とは異なる学習率を使う時に指定します。Text Encoderのほうを若干低めの学習率（5e-5など）にしたほうが良い、という話もあるようです。
 * `--network_args`
   * 複数の引数を指定できます。後述します。
 

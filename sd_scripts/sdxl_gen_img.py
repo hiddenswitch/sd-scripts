@@ -78,7 +78,7 @@ CLIP_VISION_MODEL = "laion/CLIP-ViT-bigG-14-laion2B-39B-b160k"
 高速化のためのモジュール入れ替え
 """
 
-
+torch.backends.cuda.matmul.allow_tf32 = True
 def replace_unet_modules(unet: diffusers.models.unet_2d_condition.UNet2DConditionModel, mem_eff_attn, xformers, sdpa):
     if mem_eff_attn:
         print("Enable memory efficient attention for U-Net")
@@ -1410,9 +1410,17 @@ def main(args):
         scheduler_cls = EulerAncestralDiscreteScheduler
         scheduler_module = diffusers.schedulers.scheduling_euler_ancestral_discrete
         has_clip_sample = False
-    elif args.sampler == "dpmsolver" or args.sampler == "dpmsolver++":
+    elif args.sampler == "dpmsolver" or args.sampler == "dpmsolver++" or args.sampler == 'k-dpmsolver++' or args.sampler == "sde-dpmsolver++" or args.sampler == "k-sde-dpmsolver++" or args.sampler == "lu-sde-dpmsolver++":
         scheduler_cls = DPMSolverMultistepScheduler
         sched_init_args["algorithm_type"] = args.sampler
+        if args.sampler == 'k-sde-dpmsolver++' or args.sampler == 'k-dpmsolver++':
+            sched_init_args["algorithm_type"] = args.sampler[2:]
+            sched_init_args["use_karras_sigmas"] = True
+        if args.sampler == 'lu-sde-dpmsolver++':
+            sched_init_args["algorithm_type"] = args.sampler[3:]
+            sched_init_args["use_lu_lambdas"] = True
+        if args.sampler == 'k-sde-dpmsolver++' or args.sampler == 'sde-dpmsolver++' or args.sampler == 'lu-sde-dpmsolver++':
+            sched_init_args["euler_at_final"] = True
         scheduler_module = diffusers.schedulers.scheduling_dpmsolver_multistep
         has_clip_sample = False
     elif args.sampler == "dpmsingle":
@@ -2577,6 +2585,10 @@ def setup_parser() -> argparse.ArgumentParser:
             "dpmsolver",
             "dpmsolver++",
             "dpmsingle",
+            "k-dpmsolver++",
+            "sde-dpmsolver++",
+            "k-sde-dpmsolver++",
+            "lu-sde-dpmsolver++",
             "k_lms",
             "k_euler",
             "k_euler_a",

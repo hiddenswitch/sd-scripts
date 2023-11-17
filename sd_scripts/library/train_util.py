@@ -37,6 +37,7 @@ from torch.optim import Optimizer
 from torchvision import transforms
 from transformers import CLIPTokenizer, CLIPTextModel, CLIPTextModelWithProjection
 import transformers
+import diffusers
 from diffusers.optimization import SchedulerType, TYPE_TO_SCHEDULER_FUNCTION
 from diffusers import (
     StableDiffusionPipeline,
@@ -2672,7 +2673,6 @@ def add_optimizer_arguments(parser: argparse.ArgumentParser):
         help="use Lion optimizer (requires lion-pytorch) / Lionオプティマイザを使う（ lion-pytorch のインストールが必要）",
     )
 
-    parser.add_argument("--learning_rate", type=float, default=2.0e-6, help="learning rate / 学習率")
     parser.add_argument(
         "--max_grad_norm", default=1.0, type=float, help="Max gradient norm, 0 for no clipping / 勾配正規化の最大norm、0でclippingを行わない"
     )
@@ -2996,6 +2996,10 @@ def add_training_arguments(parser: argparse.ArgumentParser, support_dreambooth: 
             "dpmsolver",
             "dpmsolver++",
             "dpmsingle",
+            "k-dpmsolver++",
+            "sde-dpmsolver++",
+            "k-sde-dpmsolver++",
+            "lu-sde-dpmsolver++",
             "k_lms",
             "k_euler",
             "k_euler_a",
@@ -3416,7 +3420,7 @@ def get_optimizer(args, trainable_params):
             optimizer_kwargs[key] = value
     # print("optkwargs:", optimizer_kwargs)
 
-    lr = args.learning_rate
+    lr = args.unet_lr
     optimizer = None
 
     if optimizer_type == "Lion".lower():
@@ -3581,7 +3585,7 @@ def get_optimizer(args, trainable_params):
             print(f"relative_step is true / relative_stepがtrueです")
             if lr != 0.0:
                 print(f"learning rate is used as initial_lr / 指定したlearning rateはinitial_lrとして使用されます")
-            args.learning_rate = None
+            args.unet_lr = None
 
             # trainable_paramsがgroupだった時の処理：lrを削除する
             if type(trainable_params) == list and type(trainable_params[0]) == dict:
@@ -3654,7 +3658,7 @@ def get_scheduler_fix(args, optimizer: Optimizer, num_processes: int):
     power = args.lr_scheduler_power
 
     lr_scheduler_kwargs = {}  # get custom lr_scheduler kwargs
-    if args.lr_scheduler_args is not None and len(args.lr_scheduler_args) > 0:
+    if args.lr_scheduler != 'constant' and args.lr_scheduler_args is not None and len(args.lr_scheduler_args) > 0:
         for arg in args.lr_scheduler_args:
             key, value = arg.split("=")
             value = ast.literal_eval(value)
@@ -4507,9 +4511,18 @@ def sample_images_common(
         scheduler_cls = EulerDiscreteScheduler
     elif args.sample_sampler == "euler_a" or args.sample_sampler == "k_euler_a":
         scheduler_cls = EulerAncestralDiscreteScheduler
-    elif args.sample_sampler == "dpmsolver" or args.sample_sampler == "dpmsolver++":
+    elif args.sample_sampler == "dpmsolver" or args.sample_sampler == "dpmsolver++" or args.sample_sampler == 'k-dpmsolver++' or args.sample_sampler == "sde-dpmsolver++" or args.sample_sampler == "k-sde-dpmsolver++" or args.sample_sampler == 'lu-sde-dpmsolver++':
         scheduler_cls = DPMSolverMultistepScheduler
         sched_init_args["algorithm_type"] = args.sample_sampler
+        if args.sample_sampler == 'k-sde-dpmsolver++' or args.sample_sampler == 'k-dpmsolver++':
+            sched_init_args["algorithm_type"] = args.sample_sampler[2:]
+            sched_init_args["use_karras_sigmas"] = True
+        if args.sample_sampler == 'lu-sde-dpmsolver++':
+            sched_init_args["algorithm_type"] = args.sample_sampler[3:]
+            sched_init_args["use_lu_lambdas"] = True
+        if args.sample_sampler == 'k-sde-dpmsolver++' or args.sample_sampler == 'sde-dpmsolver++' or args.sample_sampler == 'lu-sde-dpmsolver++':
+            sched_init_args["euler_at_final"] = True
+        scheduler_module = diffusers.schedulers.scheduling_dpmsolver_multistep
     elif args.sample_sampler == "dpmsingle":
         scheduler_cls = DPMSolverSinglestepScheduler
     elif args.sample_sampler == "heun":
