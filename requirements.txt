@@ -1,6 +1,5 @@
 accelerate
 transformers==4.30.2
-xformers==0.0.22
 diffusers[torch]
 ftfy
 # albumentations
