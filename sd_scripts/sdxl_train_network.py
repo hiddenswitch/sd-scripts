@@ -7,7 +7,7 @@ try:
         ipex_init()
 except Exception:
     pass
-from library import sdxl_model_util, sdxl_train_util, train_util
+from sd_scripts.library import sdxl_model_util, sdxl_train_util, train_util
 from . import train_network
 
 torch.backends.cuda.matmul.allow_tf32 = True

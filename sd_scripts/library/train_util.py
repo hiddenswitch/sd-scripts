@@ -54,21 +54,21 @@ from diffusers import (
     KDPM2AncestralDiscreteScheduler,
     AutoencoderKL,
 )
-from library import custom_train_functions
-from library.original_unet import UNet2DConditionModel
+from sd_scripts.library import custom_train_functions
+from sd_scripts.library.original_unet import UNet2DConditionModel
 from huggingface_hub import hf_hub_download
 import numpy as np
 from PIL import Image
 import cv2
 import safetensors.torch
-from library.lpw_stable_diffusion import StableDiffusionLongPromptWeightingPipeline
-import library.model_util as model_util
-import library.huggingface_util as huggingface_util
-import library.sai_model_spec as sai_model_spec
+from sd_scripts.library.lpw_stable_diffusion import StableDiffusionLongPromptWeightingPipeline
+import sd_scripts.library.model_util as model_util
+import sd_scripts.library.huggingface_util as huggingface_util
+import sd_scripts.library.sai_model_spec as sai_model_spec
 
 # from library.attention_processors import FlashAttnProcessor
 # from library.hypernetwork import replace_attentions_for_hypernetwork
-from library.original_unet import UNet2DConditionModel
+from sd_scripts.library.original_unet import UNet2DConditionModel
 
 # Tokenizer: checkpointから読み込むのではなくあらかじめ提供されているものを使う
 TOKENIZER_PATH = "openai/clip-vit-large-patch14"

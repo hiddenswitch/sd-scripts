@@ -5,8 +5,8 @@ from safetensors.torch import load_file, save_file
 from transformers import CLIPTextModel, CLIPTextConfig, CLIPTextModelWithProjection, CLIPTokenizer
 from typing import List
 from diffusers import AutoencoderKL, EulerDiscreteScheduler, UNet2DConditionModel
-from library import model_util
-from library import sdxl_original_unet
+from sd_scripts.library import model_util
+from sd_scripts.library import sdxl_original_unet
 
 
 VAE_SCALE_FACTOR = 0.13025
@@ -258,7 +258,7 @@ def load_models_from_sdxl_checkpoint(model_version, ckpt_path, map_location, dty
             te1_sd[k.replace("conditioner.embedders.0.transformer.", "")] = state_dict.pop(k)
         elif k.startswith("conditioner.embedders.1.model."):
             te2_sd[k] = state_dict.pop(k)
-    
+
     # 一部のposition_idsがないモデルへの対応 / add position_ids for some models
     if "text_model.embeddings.position_ids" not in te1_sd:
         te1_sd["text_model.embeddings.position_ids"] = torch.arange(77).unsqueeze(0)

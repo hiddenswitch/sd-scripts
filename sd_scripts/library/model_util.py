@@ -7,7 +7,7 @@ import torch
 try:
     import intel_extension_for_pytorch as ipex
     if torch.xpu.is_available():
-        from library.ipex import ipex_init
+        from sd_scripts.library.ipex import ipex_init
         ipex_init()
 except Exception:
     pass
@@ -15,7 +15,7 @@ import diffusers
 from transformers import CLIPTextModel, CLIPTokenizer, CLIPTextConfig, logging
 from diffusers import AutoencoderKL, DDIMScheduler, StableDiffusionPipeline  # , UNet2DConditionModel
 from safetensors.torch import load_file, save_file
-from library.original_unet import UNet2DConditionModel
+from sd_scripts.library.original_unet import UNet2DConditionModel
 
 # DiffUsers版StableDiffusionのモデルパラメータ
 NUM_TRAIN_TIMESTEPS = 1000

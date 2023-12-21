@@ -5,7 +5,7 @@ import time
 import torch
 from safetensors.torch import load_file, save_file
 from tqdm import tqdm
-from library import sai_model_spec, sdxl_model_util, train_util
+from sd_scripts.library import sai_model_spec, sdxl_model_util, train_util
 import lora
 
 
@@ -160,7 +160,7 @@ def merge_lora_models(models, ratios, merge_dtype, concat=False, shuffle=False):
         for key in tqdm(lora_sd.keys()):
             if "alpha" in key:
                 continue
-            
+
             if "lora_up" in key and concat:
                 concat_dim = 1
             elif "lora_down" in key and concat:
@@ -175,7 +175,7 @@ def merge_lora_models(models, ratios, merge_dtype, concat=False, shuffle=False):
 
             scale = math.sqrt(alpha / base_alpha) * ratio
             scale = abs(scale) if "lora_up" in key else scale # マイナスの重みに対応する。
-            
+
             if key in merged_sd:
                 assert (
                     merged_sd[key].size() == lora_sd[key].size() or concat_dim is not None
