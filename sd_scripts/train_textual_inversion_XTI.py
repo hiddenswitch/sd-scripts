@@ -8,13 +8,11 @@ from multiprocessing import Value
 
 from tqdm import tqdm
 import torch
-try:
-    import intel_extension_for_pytorch as ipex
-    if torch.xpu.is_available():
-        from library.ipex import ipex_init
-        ipex_init()
-except Exception:
-    pass
+
+from library.ipex_interop import init_ipex
+
+init_ipex()
+
 from accelerate.utils import set_seed
 import diffusers
 from diffusers import DDPMScheduler
@@ -333,9 +331,6 @@ def train(args):
         text_encoder, optimizer, train_dataloader, lr_scheduler
     )
 
-    # transform DDP after prepare
-    text_encoder, unet = train_util.transform_if_model_is_DDP(text_encoder, unet)
-
     index_no_updates = torch.arange(len(tokenizer)) < token_ids_XTI[0]
     # print(len(index_no_updates), torch.sum(index_no_updates))
     orig_embeds_params = accelerator.unwrap_model(text_encoder).get_input_embeddings().weight.data.detach().clone()
@@ -397,6 +392,8 @@ def train(args):
 
     if accelerator.is_main_process:
         init_kwargs = {}
+        if args.wandb_run_name:
+            init_kwargs['wandb'] = {'name': args.wandb_run_name}
         if args.log_tracker_config is not None:
             init_kwargs = toml.load(args.log_tracker_config)
         accelerator.init_trackers("textual_inversion" if args.log_tracker_name is None else args.log_tracker_name, init_kwargs=init_kwargs)
@@ -469,7 +466,7 @@ def train(args):
 
                 loss = loss * loss_weights
                 if args.min_snr_gamma:
-                    loss = apply_snr_weight(loss, timesteps, noise_scheduler, args.min_snr_gamma)
+                    loss = apply_snr_weight(loss, timesteps, noise_scheduler, args.min_snr_gamma, args.v_parameterization)
                 if args.scale_v_pred_loss_like_noise_pred:
                     loss = scale_v_prediction_loss_like_noise_prediction(loss, timesteps, noise_scheduler)
                 if args.debiased_estimation_loss:

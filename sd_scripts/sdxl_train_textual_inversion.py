@@ -1,6 +1,7 @@
 import argparse
 import os
 
+import regex
 import torch
 try:
     import intel_extension_for_pytorch as ipex
@@ -62,6 +63,7 @@ class SdxlTextualInversionTrainer(train_textual_inversion.TextualInversionTraine
                 text_encoders[0],
                 text_encoders[1],
                 None if not args.full_fp16 else weight_dtype,
+                accelerator=accelerator,
             )
         return encoder_hidden_states1, encoder_hidden_states2, pool2
 
