@@ -18,7 +18,7 @@ import diffusers
 import numpy as np
 import torch
 
-from library.ipex_interop import init_ipex
+from sd_scripts.library.ipex_interop import init_ipex
 
 init_ipex()
 
@@ -47,14 +47,14 @@ import PIL
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 
-import library.model_util as model_util
-import library.train_util as train_util
-import library.sdxl_model_util as sdxl_model_util
-import library.sdxl_train_util as sdxl_train_util
-from networks.lora import LoRANetwork
-from library.sdxl_original_unet import InferSdxlUNet2DConditionModel
-from library.original_unet import FlashAttentionFunction
-from networks.control_net_lllite import ControlNetLLLite
+import sd_scripts.library.model_util as model_util
+import sd_scripts.library.train_util as train_util
+import sd_scripts.library.sdxl_model_util as sdxl_model_util
+import sd_scripts.library.sdxl_train_util as sdxl_train_util
+from sd_scripts.networks.lora import LoRANetwork
+from sd_scripts.library.sdxl_original_unet import InferSdxlUNet2DConditionModel
+from sd_scripts.library.original_unet import FlashAttentionFunction
+from sd_scripts.networks.control_net_lllite import ControlNetLLLite
 
 # scheduler:
 SCHEDULER_LINEAR_START = 0.00085

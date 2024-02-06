@@ -66,7 +66,7 @@ import diffusers
 import numpy as np
 import torch
 
-from library.ipex_interop import init_ipex
+from sd_scripts.library.ipex_interop import init_ipex
 
 init_ipex()
 
@@ -95,13 +95,13 @@ import PIL
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 
-import library.model_util as model_util
-import library.train_util as train_util
-from networks.lora import LoRANetwork
-import tools.original_control_net as original_control_net
-from tools.original_control_net import ControlNetInfo
-from library.original_unet import UNet2DConditionModel, InferUNet2DConditionModel
-from library.original_unet import FlashAttentionFunction
+import sd_scripts.library.model_util as model_util
+import sd_scripts.library.train_util as train_util
+from sd_scripts.networks.lora import LoRANetwork
+import sd_scripts.tools.original_control_net as original_control_net
+from sd_scripts.tools.original_control_net import ControlNetInfo
+from sd_scripts.library.original_unet import UNet2DConditionModel, InferUNet2DConditionModel
+from sd_scripts.library.original_unet import FlashAttentionFunction
 
 from .XTI_hijack import unet_forward_XTI, downblock_forward_XTI, upblock_forward_XTI
 
@@ -4440,7 +4440,7 @@ class PipelineLike:
             text_emb_last = torch.stack(text_emb_last)
         else:
             text_emb_last = text_embeddings
-            
+
         for i, t in enumerate(tqdm(timesteps)):
             # expand the latents if we are doing classifier free guidance
             latent_model_input = latents.repeat((num_latent_input, 1, 1, 1))

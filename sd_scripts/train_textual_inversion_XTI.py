@@ -9,24 +9,24 @@ from multiprocessing import Value
 from tqdm import tqdm
 import torch
 
-from library.ipex_interop import init_ipex
+from sd_scripts.library.ipex_interop import init_ipex
 
 init_ipex()
 
 from accelerate.utils import set_seed
 import diffusers
 from diffusers import DDPMScheduler
-import library
+import sd_scripts.library
 
-import library.train_util as train_util
-import library.huggingface_util as huggingface_util
-import library.config_util as config_util
-from library.config_util import (
+import sd_scripts.library.train_util as train_util
+import sd_scripts.library.huggingface_util as huggingface_util
+import sd_scripts.library.config_util as config_util
+from sd_scripts.library.config_util import (
     ConfigSanitizer,
     BlueprintGenerator,
 )
-import library.custom_train_functions as custom_train_functions
-from library.custom_train_functions import (
+import sd_scripts.library.custom_train_functions as custom_train_functions
+from sd_scripts.library.custom_train_functions import (
     apply_snr_weight,
     prepare_scheduler_for_custom_training,
     pyramid_noise_like,
@@ -34,7 +34,7 @@ from library.custom_train_functions import (
     scale_v_prediction_loss_like_noise_prediction,
     apply_debiased_estimation,
 )
-import library.original_unet as original_unet
+import sd_scripts.library.original_unet as original_unet
 from XTI_hijack import unet_forward_XTI, downblock_forward_XTI, upblock_forward_XTI
 
 imagenet_templates_small = [

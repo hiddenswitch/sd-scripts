@@ -12,7 +12,7 @@ import toml
 from tqdm import tqdm
 import torch
 
-from library.ipex_interop import init_ipex
+from sd_scripts.library.ipex_interop import init_ipex
 
 init_ipex()
 
@@ -20,18 +20,18 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from accelerate.utils import set_seed
 from diffusers import DDPMScheduler, ControlNetModel
 from safetensors.torch import load_file
-from library import sai_model_spec, sdxl_model_util, sdxl_original_unet, sdxl_train_util
+from sd_scripts.library import sai_model_spec, sdxl_model_util, sdxl_original_unet, sdxl_train_util
 
-import library.model_util as model_util
-import library.train_util as train_util
-import library.config_util as config_util
-from library.config_util import (
+import sd_scripts.library.model_util as model_util
+import sd_scripts.library.train_util as train_util
+import sd_scripts.library.config_util as config_util
+from sd_scripts.library.config_util import (
     ConfigSanitizer,
     BlueprintGenerator,
 )
-import library.huggingface_util as huggingface_util
-import library.custom_train_functions as custom_train_functions
-from library.custom_train_functions import (
+import sd_scripts.library.huggingface_util as huggingface_util
+import sd_scripts.library.custom_train_functions as custom_train_functions
+from sd_scripts.library.custom_train_functions import (
     add_v_prediction_like_loss,
     apply_snr_weight,
     prepare_scheduler_for_custom_training,
@@ -40,7 +40,7 @@ from library.custom_train_functions import (
     scale_v_prediction_loss_like_noise_prediction,
     apply_debiased_estimation,
 )
-import networks.control_net_lllite as control_net_lllite
+import sd_scripts.networks.control_net_lllite as control_net_lllite
 
 torch.backends.cuda.matmul.allow_tf32 = True
 # TODO 他のスクリプトと共通化する
