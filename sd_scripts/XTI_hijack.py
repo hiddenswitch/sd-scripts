@@ -3,9 +3,8 @@ from sd_scripts.library.ipex_interop import init_ipex
 
 init_ipex()
 from typing import Union, List, Optional, Dict, Any, Tuple
-from diffusers.models.unet_2d_condition import UNet2DConditionOutput
 
-from sd_scripts.library.original_unet import SampleOutput
+from .library.original_unet import SampleOutput
 
 
 def unet_forward_XTI(

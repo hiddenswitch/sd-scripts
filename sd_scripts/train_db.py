@@ -19,14 +19,14 @@ init_ipex()
 from accelerate.utils import set_seed
 from diffusers import DDPMScheduler
 
-import sd_scripts.library.train_util as train_util
-import sd_scripts.library.config_util as config_util
-from sd_scripts.library.config_util import (
+from .library import train_util
+from .library import config_util
+from .library.config_util import (
     ConfigSanitizer,
     BlueprintGenerator,
 )
-import sd_scripts.library.custom_train_functions as custom_train_functions
-from sd_scripts.library.custom_train_functions import (
+from .library import custom_train_functions
+from .library.custom_train_functions import (
     apply_snr_weight,
     get_weighted_text_embeddings,
     prepare_scheduler_for_custom_training,
