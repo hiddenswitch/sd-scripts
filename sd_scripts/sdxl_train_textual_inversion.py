@@ -2,6 +2,7 @@ import argparse
 import os
 
 import regex
+
 import torch
 try:
     import intel_extension_for_pytorch as ipex
@@ -10,6 +11,7 @@ try:
         ipex_init()
 except Exception:
     pass
+import open_clip
 from library import sdxl_model_util, sdxl_train_util, train_util
 
 from . import train_textual_inversion

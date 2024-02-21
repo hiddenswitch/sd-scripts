@@ -1,4 +1,5 @@
 import argparse
+
 import torch
 try:
     import intel_extension_for_pytorch as ipex
@@ -11,6 +12,12 @@ from .library import sdxl_model_util, sdxl_train_util, train_util
 from . import train_network
 
 torch.backends.cuda.matmul.allow_tf32 = True
+
+from .library.utils import setup_logging
+setup_logging()
+import logging
+logger = logging.getLogger(__name__)
+
 class SdxlNetworkTrainer(train_network.NetworkTrainer):
     def __init__(self):
         super().__init__()
@@ -62,13 +69,12 @@ class SdxlNetworkTrainer(train_network.NetworkTrainer):
         if args.cache_text_encoder_outputs:
             if not args.lowram:
                 # メモリ消費を減らす
-                print("move vae and unet to cpu to save memory")
+                logger.info("move vae and unet to cpu to save memory")
                 org_vae_device = vae.device
                 org_unet_device = unet.device
                 vae.to("cpu")
                 unet.to("cpu")
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
+                clean_memory_on_device(accelerator.device)
 
             # When TE is not be trained, it will not be prepared so we need to use explicit autocast
             with accelerator.autocast():
@@ -83,11 +89,10 @@ class SdxlNetworkTrainer(train_network.NetworkTrainer):
 
             text_encoders[0].to("cpu", dtype=torch.float32)  # Text Encoder doesn't work with fp16 on CPU
             text_encoders[1].to("cpu", dtype=torch.float32)
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+            clean_memory_on_device(accelerator.device)
 
             if not args.lowram:
-                print("move vae and unet back to original device")
+                logger.info("move vae and unet back to original device")
                 vae.to(org_vae_device)
                 unet.to(org_unet_device)
         else:
@@ -145,7 +150,7 @@ class SdxlNetworkTrainer(train_network.NetworkTrainer):
             # assert ((encoder_hidden_states1.to("cpu") - ehs1.to(dtype=weight_dtype)).abs().max() > 1e-2).sum() <= b_size * 2
             # assert ((encoder_hidden_states2.to("cpu") - ehs2.to(dtype=weight_dtype)).abs().max() > 1e-2).sum() <= b_size * 2
             # assert ((pool2.to("cpu") - p2.to(dtype=weight_dtype)).abs().max() > 1e-2).sum() <= b_size * 2
-            # print("text encoder outputs verified")
+            # logger.info("text encoder outputs verified")
 
         return encoder_hidden_states1, encoder_hidden_states2, pool2
 

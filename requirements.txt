@@ -30,3 +30,5 @@ scipy
 # protobuf
 # open clip for SDXL
 open-clip-torch==2.20.0
+# For logging
+rich==13.7.0
