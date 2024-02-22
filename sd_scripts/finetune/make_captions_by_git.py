@@ -13,8 +13,8 @@ init_ipex()
 from transformers import AutoProcessor, AutoModelForCausalLM
 from transformers.generation.utils import GenerationMixin
 
-import library.train_util as train_util
-from library.utils import setup_logging
+from ..library import train_util
+from ..library.utils import setup_logging
 setup_logging()
 import logging
 logger = logging.getLogger(__name__)

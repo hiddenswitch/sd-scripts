@@ -1,5 +1,5 @@
 import torch
-from sd_scripts.library.device_utils import init_ipex
+from .library.device_utils import init_ipex
 init_ipex()
 
 from typing import Union, List, Optional, Dict, Any, Tuple

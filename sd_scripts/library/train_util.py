@@ -33,7 +33,7 @@ import toml
 from tqdm import tqdm
 
 import torch
-from library.device_utils import init_ipex, clean_memory_on_device
+from ..library.device_utils import init_ipex, clean_memory_on_device
 
 init_ipex()
 

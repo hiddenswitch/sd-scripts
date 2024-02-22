@@ -10,27 +10,27 @@ import toml
 from tqdm import tqdm
 
 import torch
-from library.device_utils import init_ipex, clean_memory_on_device
+from .sd_scripts.library.device_utils import init_ipex, clean_memory_on_device
 
 init_ipex()
 
 from accelerate.utils import set_seed
 from diffusers import DDPMScheduler
 
-import library.train_util as train_util
-from library.sdxl_train_util import add_sdxl_training_arguments
-import library.stable_cascade_utils as sc_utils
-import library.stable_cascade as sc
+from .sd_scripts.library import train_util
+from .sd_scripts.library.sdxl_train_util import add_sdxl_training_arguments
+from .sd_scripts.library import stable_cascade_utils as sc_utils
+from .sd_scripts.library import stable_cascade as sc
 
-from library.utils import setup_logging, add_logging_arguments
+from .sd_scripts.library.utils import setup_logging, add_logging_arguments
 
 setup_logging()
 import logging
 
 logger = logging.getLogger(__name__)
 
-import library.config_util as config_util
-from library.config_util import (
+from .sd_scripts.library import config_util
+from .sd_scripts.library.config_util import (
     ConfigSanitizer,
     BlueprintGenerator,
 )

@@ -11,13 +11,13 @@ from typing import Dict, List
 import numpy as np
 
 import torch
-from library.device_utils import init_ipex, get_preferred_device
+from ..library.device_utils import init_ipex, get_preferred_device
 init_ipex()
 
 from torch import nn
 from tqdm import tqdm
 from PIL import Image
-from library.utils import setup_logging
+from ..library.utils import setup_logging
 setup_logging()
 import logging
 logger = logging.getLogger(__name__)

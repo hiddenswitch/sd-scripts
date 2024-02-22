@@ -11,17 +11,17 @@ from tqdm import tqdm
 import numpy as np
 
 import torch
-from library.device_utils import init_ipex, get_preferred_device
+from ..library.device_utils import init_ipex, get_preferred_device
 init_ipex()
 
 from torchvision import transforms
 from torchvision.transforms.functional import InterpolationMode
 sys.path.append(os.path.dirname(__file__))
 from blip.blip import blip_decoder, is_url
-import library.train_util as train_util
+from ..library import train_util
 import pkg_resources
 
-from library.utils import setup_logging
+from ..library.utils import setup_logging
 setup_logging()
 import logging
 logger = logging.getLogger(__name__)

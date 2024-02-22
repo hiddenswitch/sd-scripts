@@ -10,16 +10,16 @@ from PIL import Image
 import cv2
 
 import torch
-from library.device_utils import init_ipex, get_preferred_device
+from ..library.device_utils import init_ipex, get_preferred_device
 
 init_ipex()
 
 from torchvision import transforms
 
-import library.model_util as model_util
-import library.stable_cascade_utils as sc_utils
-import library.train_util as train_util
-from library.utils import setup_logging
+from ..library import model_util
+from ..library import stable_cascade_utils as sc_utils
+from ..library import train_util
+from ..library.utils import setup_logging
 
 setup_logging()
 import logging

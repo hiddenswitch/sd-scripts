@@ -12,28 +12,28 @@ import toml
 from tqdm import tqdm
 
 import torch
-from library.device_utils import init_ipex, clean_memory_on_device
-
+from .sd_scripts.library.device_utils import init_ipex, clean_memory_on_device
 init_ipex()
+
 
 from accelerate.utils import set_seed
 from diffusers import DDPMScheduler
 
-import library.train_util as train_util
-from library.train_util import (
+from .sd_scripts.library import train_util
+from .sd_scripts.library.train_util import (
     DreamBoothDataset,
 )
-import library.config_util as config_util
-from library.config_util import (
+from .sd_scripts.library import config_util
+from .sd_scripts.library.config_util import (
     ConfigSanitizer,
     BlueprintGenerator,
 )
-import library.huggingface_util as huggingface_util
-import library.custom_train_functions as custom_train_functions
-import library.stable_cascade_utils as sc_utils
-import library.stable_cascade as sc
-from library.sdxl_train_util import add_sdxl_training_arguments
-from library.custom_train_functions import (
+from .sd_scripts.library import huggingface_util
+from .sd_scripts.library import custom_train_functions
+from .sd_scripts.library import stable_cascade_utils as sc_utils
+from .sd_scripts.library import stable_cascade as sc
+from .sd_scripts.library.sdxl_train_util import add_sdxl_training_arguments
+from .sd_scripts.library.custom_train_functions import (
     apply_snr_weight,
     get_weighted_text_embeddings,
     prepare_scheduler_for_custom_training,
@@ -41,7 +41,7 @@ from library.custom_train_functions import (
     add_v_prediction_like_loss,
     apply_debiased_estimation,
 )
-from library.utils import setup_logging, add_logging_arguments
+from sd_scripts.library.utils import setup_logging, add_logging_arguments
 
 setup_logging()
 import logging

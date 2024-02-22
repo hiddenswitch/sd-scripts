@@ -1,16 +1,16 @@
 
 
 from tqdm import tqdm
-import library.train_util as train_util
+from ..library import train_util
 import argparse
 from transformers import CLIPTokenizer
 
 import torch
-from library.device_utils import init_ipex, get_preferred_device
+from ..library.device_utils import init_ipex, get_preferred_device
 init_ipex()
 
 import lora
-from library.utils import setup_logging
+from ..library.utils import setup_logging
 setup_logging()
 import logging
 logger = logging.getLogger(__name__)

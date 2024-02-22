@@ -4,7 +4,7 @@ import os
 from typing import Optional
 
 import torch
-from library.device_utils import init_ipex, clean_memory_on_device
+from ..library.device_utils import init_ipex, clean_memory_on_device
 init_ipex()
 
 from accelerate import init_empty_weights
@@ -12,7 +12,7 @@ from tqdm import tqdm
 from transformers import CLIPTokenizer
 from sd_scripts.library import model_util, sdxl_model_util, train_util, sdxl_original_unet
 from sd_scripts.library.sdxl_lpw_stable_diffusion import SdxlStableDiffusionLongPromptWeightingPipeline
-from library.utils import setup_logging
+from ..library.utils import setup_logging
 setup_logging()
 import logging
 logger = logging.getLogger(__name__)

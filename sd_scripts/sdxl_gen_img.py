@@ -19,7 +19,7 @@ import numpy as np
 
 import torch
 
-from .library.ipex_interop import init_ipex
+from .library.device_utils import init_ipex
 
 init_ipex()
 
