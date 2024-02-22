@@ -33,7 +33,7 @@ import toml
 from tqdm import tqdm
 
 import torch
-from ..library.device_utils import init_ipex, clean_memory_on_device
+from .device_utils import init_ipex, clean_memory_on_device
 
 init_ipex()
 
@@ -59,18 +59,18 @@ from diffusers import (
     KDPM2AncestralDiscreteScheduler,
     AutoencoderKL,
 )
-from sd_scripts.library import custom_train_functions
-from sd_scripts.library.original_unet import UNet2DConditionModel
+from . import custom_train_functions
+from .original_unet import UNet2DConditionModel
 from huggingface_hub import hf_hub_download
 import numpy as np
 from PIL import Image
 import cv2
 import safetensors.torch
-from sd_scripts.library.lpw_stable_diffusion import StableDiffusionLongPromptWeightingPipeline
-import sd_scripts.library.model_util as model_util
-import sd_scripts.library.huggingface_util as huggingface_util
-import sd_scripts.library.sai_model_spec as sai_model_spec
-from sd_scripts.library.utils import setup_logging
+from .lpw_stable_diffusion import StableDiffusionLongPromptWeightingPipeline
+from . import model_util
+from . import huggingface_util
+from . import sai_model_spec
+from .utils import setup_logging
 
 setup_logging()
 import logging
@@ -78,7 +78,7 @@ import logging
 logger = logging.getLogger(__name__)
 # from library.attention_processors import FlashAttnProcessor
 # from library.hypernetwork import replace_attentions_for_hypernetwork
-from sd_scripts.library.original_unet import UNet2DConditionModel
+from .original_unet import UNet2DConditionModel
 
 # Tokenizer: checkpointから読み込むのではなくあらかじめ提供されているものを使う
 TOKENIZER_PATH = "openai/clip-vit-large-patch14"

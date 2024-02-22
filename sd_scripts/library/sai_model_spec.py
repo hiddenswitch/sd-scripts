@@ -5,7 +5,7 @@ from io import BytesIO
 import os
 from typing import List, Optional, Tuple, Union
 import safetensors
-from ..library.utils import setup_logging
+from .utils import setup_logging
 
 setup_logging()
 import logging
