@@ -3,8 +3,8 @@ from huggingface_hub import HfApi
 from pathlib import Path
 import argparse
 import os
-from sd_scripts.library.utils import fire_in_thread
-from sd_scripts.library.utils import setup_logging
+from ..library.utils import fire_in_thread
+from ..library.utils import setup_logging
 setup_logging()
 import logging
 logger = logging.getLogger(__name__)

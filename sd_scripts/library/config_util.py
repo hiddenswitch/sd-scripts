@@ -542,7 +542,8 @@ def generate_dataset_group_by_blueprint(dataset_group_blueprint: DatasetGroupBlu
                         metadata_file: {subset.metadata_file}
                     \n"""), "        ")
 
-    logger.info(f'{info}')
+    # TODO: fix info so that I can print info to logger here
+    # logger.info(f'{info}')
 
     print_info(datasets)
 

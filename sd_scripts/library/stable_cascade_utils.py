@@ -15,20 +15,20 @@ from transformers import CLIPTokenizer, CLIPTextModelWithProjection, CLIPTextCon
 from accelerate import init_empty_weights, Accelerator, PartialState
 from PIL import Image
 
-from library import stable_cascade as sc
+from ..library import stable_cascade as sc
 
-from library.sdxl_model_util import _load_state_dict_on_device
-from library.device_utils import clean_memory_on_device
-from library.train_util import (
+from ..library.sdxl_model_util import _load_state_dict_on_device
+from ..library.device_utils import clean_memory_on_device
+from ..library.train_util import (
     save_sd_model_on_epoch_end_or_stepwise_common,
     save_sd_model_on_train_end_common,
     line_to_prompt_dict,
     get_hidden_states_stable_cascade,
 )
-from library import sai_model_spec
+from ..library import sai_model_spec
 
 
-from library.utils import setup_logging
+from ..library.utils import setup_logging
 
 setup_logging()
 import logging

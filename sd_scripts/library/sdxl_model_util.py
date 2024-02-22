@@ -5,9 +5,9 @@ from safetensors.torch import load_file, save_file
 from transformers import CLIPTextModel, CLIPTextConfig, CLIPTextModelWithProjection, CLIPTokenizer
 from typing import List
 from diffusers import AutoencoderKL, EulerDiscreteScheduler, UNet2DConditionModel
-from sd_scripts.library import model_util
-from sd_scripts.library import sdxl_original_unet
-from library.utils import setup_logging
+from ..library import model_util
+from ..library import sdxl_original_unet
+from ..library.utils import setup_logging
 setup_logging()
 import logging
 logger = logging.getLogger(__name__)
