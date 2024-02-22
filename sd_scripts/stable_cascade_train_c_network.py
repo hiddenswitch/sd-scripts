@@ -7,6 +7,8 @@ import random
 import time
 import json
 from multiprocessing import Value
+
+import pandas as pd
 import toml
 
 from tqdm import tqdm
@@ -242,10 +244,11 @@ class NetworkTrainer:
                     }
 
             blueprint = blueprint_generator.generate(user_config, args, tokenizer=tokenizer)
-            train_dataset_group = config_util.generate_dataset_group_by_blueprint(blueprint.dataset_group)
+            train_dataset_group, val_dataset_group = config_util.generate_dataset_group_by_blueprint(blueprint.dataset_group)
         else:
             # use arbitrary dataset class
             train_dataset_group = train_util.load_arbitrary_dataset(args, tokenizer)
+            val_dataset_group = None
 
         current_epoch = Value("i", 0)
         current_step = Value("i", 0)
@@ -265,6 +268,10 @@ class NetworkTrainer:
             assert (
                 train_dataset_group.is_latent_cacheable()
             ), "when caching latents, either color_aug or random_crop cannot be used / latentをキャッシュするときはcolor_augとrandom_cropは使えません"
+            if val_dataset_group is not None:
+                assert (
+                    val_dataset_group.is_latent_cacheable()
+                ), "when caching validation latents, either color_aug or random_crop cannot be used / latentをキャッシュするときはcolor_augとrandom_cropは使えません"
 
         self.assert_extra_args(args, train_dataset_group)
 
@@ -336,6 +343,16 @@ class NetworkTrainer:
                     train_util.STABLE_CASCADE_LATENTS_CACHE_SUFFIX,
                     32,
                 )
+
+                if val_dataset_group is not None:
+                    val_dataset_group.cache_latents(
+                        effnet,
+                        args.vae_batch_size,
+                        args.cache_latents_to_disk,
+                        accelerator.is_main_process,
+                        train_util.STABLE_CASCADE_LATENTS_CACHE_SUFFIX,
+                        32,
+                    )
             effnet.to("cpu")
             clean_memory_on_device(accelerator.device)
 
@@ -423,6 +440,15 @@ class NetworkTrainer:
             train_dataset_group,
             batch_size=1,
             shuffle=True,
+            collate_fn=collator,
+            num_workers=n_workers,
+            persistent_workers=args.persistent_data_loader_workers,
+        )
+
+        val_dataloader = torch.utils.data.DataLoader(
+            val_dataset_group if val_dataset_group is not None else [],
+            shuffle=False,
+            batch_size=1,
             collate_fn=collator,
             num_workers=n_workers,
             persistent_workers=args.persistent_data_loader_workers,
@@ -777,6 +803,7 @@ class NetworkTrainer:
             )
 
         loss_recorder = train_util.LossRecorder()
+        val_loss_recorder = train_util.LossRecorder()
         del train_dataset_group
 
         # callback for step start
@@ -812,6 +839,7 @@ class NetworkTrainer:
         # For --sample_at_first
         sc_utils.sample_images(accelerator, args, 0, global_step, previewer, tokenizer, text_encoder, stage_c, gdf)
 
+        epoch_loss_map = {}
         # training loop
         for epoch in range(num_train_epochs):
             accelerator.print(f"\nepoch {epoch+1}/{num_train_epochs}")
@@ -937,6 +965,28 @@ class NetworkTrainer:
                 if global_step >= args.max_train_steps:
                     break
 
+            if len(val_dataloader) > 0:
+                print("Validating バリデーション処理...")
+
+            with torch.no_grad():
+                for val_step, batch in enumerate(val_dataloader):
+                    is_train = False
+                    loss = self.process_batch(batch, is_train, train_unet, network, network_has_multiplier, tokenizers, text_encoders, unet, vae, noise_scheduler, vae_dtype, weight_dtype, accelerator, args)
+
+                    current_loss = loss.detach().item()
+                    val_loss_recorder.add(epoch=epoch, step=val_step, loss=current_loss)
+
+                    if args.logging_dir is not None:
+                        avr_loss: float = val_loss_recorder.moving_average
+                        logs = {"loss/validation_current": current_loss}
+                        accelerator.log(logs, step=(len(val_dataloader) * epoch) + 1 + val_step)
+
+                if len(val_dataloader) > 0:
+                    if args.logging_dir is not None:
+                        avr_loss: float = val_loss_recorder.moving_average
+                        logs = {"loss/validation_average": avr_loss}
+                        accelerator.log(logs, step=epoch + 1)
+
             if args.logging_dir is not None:
                 logs = {"loss/epoch": loss_recorder.moving_average}
                 accelerator.log(logs, step=epoch + 1)
@@ -960,7 +1010,30 @@ class NetworkTrainer:
 
             sc_utils.sample_images(accelerator, args, epoch + 1, global_step, previewer, tokenizer, text_encoder, stage_c, gdf)
 
+            epoch_loss_map[epoch] = avr_loss
             # end of epoch
+
+            if args.stop_on_loss is not None and global_step >= args.stop_on_loss_steps and len(epoch_loss_map) >= args.stop_on_loss_epochs:
+                # Convert the dictionary to a pandas Series
+                loss_series = pd.Series(epoch_loss_map)
+
+                # Compute the moving average with a window size of your choice. Here we are taking a window size of 3.
+                smoothed = loss_series.rolling(window=args.stop_on_loss_window).mean()
+
+                # Getting the last 3 epoch losses
+                last_losses = list(smoothed)[-args.stop_on_loss_epochs:]
+
+                # Calculating the average of the last 3 epoch losses
+                avg_last_losses = sum(last_losses) / len(last_losses)
+
+                # If average of last three losses is less than the stop_on_loss parameter, break the loop
+                if avg_last_losses < args.stop_on_loss:
+                    break;
+
+                # Combine another strategy also, not just average
+                # Check if losses are gradually decreasing
+                if is_decreasing(last_losses, args.stop_on_loss_delta) and last_losses[-1] < args.stop_on_loss:
+                    break;
 
         # metadata["ss_epoch"] = str(num_train_epochs)
         metadata["ss_training_finished_at"] = str(time.time())
@@ -1079,6 +1152,12 @@ def setup_parser() -> argparse.ArgumentParser:
         help="do not use fp16/bf16 VAE in mixed precision (use float VAE) / mixed precisionでも fp16/bf16 VAEを使わずfloat VAEを使う",
     )
     return parser
+
+def is_decreasing(list, min_delta=0.001):
+    return all(list[i] - list[i + 1] >= min_delta for i in range(len(list) - 1))
+
+def is_increasing(list, min_delta=0.001):
+    return all(list[i + 1] - list[i] >= min_delta for i in range(len(list) - 1))
 
 
 if __name__ == "__main__":
