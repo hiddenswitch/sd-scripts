@@ -20,7 +20,8 @@ import diffusers
 import numpy as np
 import torch
 
-from .sd_scripts.library.device_utils import init_ipex
+from .sd_scripts.library.device_utils import init_ipex, clean_memory, get_preferred_device
+
 
 init_ipex()
 
