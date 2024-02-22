@@ -13,11 +13,11 @@ from transformers import AutoTokenizer, CLIPTextModelWithProjection, CLIPTextCon
 from PIL import Image
 from accelerate import init_empty_weights
 
-import library.stable_cascade as sc
-import library.stable_cascade_utils as sc_utils
-import library.device_utils as device_utils
-from library import train_util
-from library.sdxl_model_util import _load_state_dict_on_device
+from .library import stable_cascade as sc
+from .library import stable_cascade_utils as sc_utils
+from .library import device_utils
+from .library import train_util
+from .library.sdxl_model_util import _load_state_dict_on_device
 
 
 def main(args):
