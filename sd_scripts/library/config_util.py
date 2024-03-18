@@ -100,13 +100,13 @@ class ControlNetSubsetParams(BaseSubsetParams):
 
 @dataclass
 class BaseDatasetParams:
-  tokenizer: Union[CLIPTokenizer, List[CLIPTokenizer]] = None
-  max_token_length: int = None
-  resolution: Optional[Tuple[int, int]] = None
-  network_multiplier: float = 1.0
-  debug_dataset: bool = False
-  validation_seed: Optional[int] = None
-  validation_split: float = 0.0
+    tokenizer: Union[CLIPTokenizer, List[CLIPTokenizer]] = None
+    max_token_length: int = None
+    resolution: Optional[Tuple[int, int]] = None
+    network_multiplier: float = 1.0
+    debug_dataset: bool = False
+    validation_seed: Optional[int] = None
+    validation_split: float = 0.0
 
 
 @dataclass
@@ -256,7 +256,8 @@ class ConfigSanitizer:
         "dataset_repeats": "num_repeats",
     }
 
-    def __init__(self, support_dreambooth: bool, support_finetuning: bool, support_controlnet: bool, support_dropout: bool) -> None:
+    def __init__(self, support_dreambooth: bool, support_finetuning: bool, support_controlnet: bool,
+                 support_dropout: bool) -> None:
         assert support_dreambooth or support_finetuning or support_controlnet, (
             "Neither DreamBooth mode nor fine tuning mode nor controlnet mode specified. Please specify one mode or more."
             + " / DreamBooth モードか fine tuning モードか controlnet モードのどれも指定されていません。1つ以上指定してください。"
@@ -430,7 +431,8 @@ class BlueprintGenerator:
             subset_blueprints = []
             for subset_config in subsets:
                 params = self.generate_params_by_fallbacks(
-                    subset_params_klass, [subset_config, dataset_config, general_config, argparse_config, runtime_params]
+                    subset_params_klass,
+                    [subset_config, dataset_config, general_config, argparse_config, runtime_params]
                 )
                 subset_blueprints.append(SubsetBlueprint(params))
 
@@ -450,7 +452,8 @@ class BlueprintGenerator:
         default_params = asdict(param_klass())
         param_names = default_params.keys()
 
-        params = {name: search_value(name_map.get(name, name), fallbacks, default_params.get(name)) for name in param_names}
+        params = {name: search_value(name_map.get(name, name), fallbacks, default_params.get(name)) for name in
+                  param_names}
 
         return param_klass(**params)
 
@@ -482,7 +485,7 @@ def generate_dataset_group_by_blueprint(dataset_group_blueprint: DatasetGroupBlu
     dataset = dataset_klass(subsets=subsets, is_train=True, **asdict(dataset_blueprint.params))
     datasets.append(dataset)
 
-    val_datasets:List[Union[DreamBoothDataset, FineTuningDataset, ControlNetDataset]] = []
+    val_datasets: List[Union[DreamBoothDataset, FineTuningDataset, ControlNetDataset]] = []
     for dataset_blueprint in dataset_group_blueprint.datasets:
         if dataset_blueprint.params.validation_split <= 0.0:
             continue
@@ -553,16 +556,17 @@ def generate_dataset_group_by_blueprint(dataset_group_blueprint: DatasetGroupBlu
                 "  ",
             )
 
-                if is_dreambooth:
-                    info += indent(dedent(f"""\
+            if is_dreambooth:
+                info += indent(dedent(f"""\
                         is_reg: {subset.is_reg}
                         class_tokens: {subset.class_tokens}
                         caption_extension: {subset.caption_extension}
                     \n"""), "        ")
-                elif not is_controlnet:
-                    info += indent(dedent(f"""\
+            elif not is_controlnet:
+                info += indent(dedent(f"""\
                         metadata_file: {subset.metadata_file}
                     \n"""), "        ")
+
 
     # TODO: fix info so that I can print info to logger here
     # logger.info(f'{info}')
@@ -575,7 +579,7 @@ def generate_dataset_group_by_blueprint(dataset_group_blueprint: DatasetGroupBlu
 
     # make buckets first because it determines the length of dataset
     # and set the same seed for all datasets
-    seed = random.randint(0, 2**31)  # actual seed is seed + epoch_no
+    seed = random.randint(0, 2 ** 31)  # actual seed is seed + epoch_no
     for i, dataset in enumerate(datasets):
         logger.info(f"[Dataset {i}]")
         dataset.make_buckets()
@@ -592,8 +596,8 @@ def generate_dataset_group_by_blueprint(dataset_group_blueprint: DatasetGroupBlu
     )
 
 
-
-def generate_dreambooth_subsets_config_by_subdirs(train_data_dir: Optional[str] = None, reg_data_dir: Optional[str] = None):
+def generate_dreambooth_subsets_config_by_subdirs(train_data_dir: Optional[str] = None,
+                                                  reg_data_dir: Optional[str] = None):
     def extract_dreambooth_params(name: str) -> Tuple[int, str]:
         tokens = name.split("_")
         try:
@@ -621,7 +625,8 @@ def generate_dreambooth_subsets_config_by_subdirs(train_data_dir: Optional[str] 
             if num_repeats < 1:
                 continue
 
-            subset_config = {"image_dir": str(subdir), "num_repeats": num_repeats, "is_reg": is_reg, "class_tokens": class_tokens}
+            subset_config = {"image_dir": str(subdir), "num_repeats": num_repeats, "is_reg": is_reg,
+                             "class_tokens": class_tokens}
             subsets_config.append(subset_config)
 
         return subsets_config
@@ -717,7 +722,8 @@ if __name__ == "__main__":
     logger.info(f"{user_config}")
 
     sanitizer = ConfigSanitizer(
-        config_args.support_dreambooth, config_args.support_finetuning, config_args.support_controlnet, config_args.support_dropout
+        config_args.support_dreambooth, config_args.support_finetuning, config_args.support_controlnet,
+        config_args.support_dropout
     )
     sanitized_user_config = sanitizer.sanitize_user_config(user_config)
 
