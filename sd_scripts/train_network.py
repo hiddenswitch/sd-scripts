@@ -43,6 +43,7 @@ from .library.custom_train_functions import (
     scale_v_prediction_loss_like_noise_prediction,
     add_v_prediction_like_loss,
     apply_debiased_estimation,
+    apply_masked_loss,
 )
 from .library.utils import setup_logging, add_logging_arguments
 
@@ -154,7 +155,7 @@ class NetworkTrainer:
                     latents = torch.where(torch.isnan(latents), torch.zeros_like(latents), latents)
             latents = latents * self.vae_scale_factor
 
-        # get multiplier for each sample
+            # get multiplier for each sample
         if network_has_multiplier:
             multipliers = batch["network_multipliers"]
             # if all multipliers are same, use single multiplier
@@ -181,8 +182,8 @@ class NetworkTrainer:
                     args, accelerator, batch, tokenizers, text_encoders, weight_dtype
                 )
 
-        # Sample noise, sample a random timestep for each image, and add noise to the latents,
-        # with noise offset and/or multires noise if specified
+            # Sample noise, sample a random timestep for each image, and add noise to the latents,
+            # with noise offset and/or multires noise if specified
         noise, noisy_latents, timesteps = train_util.get_noise_noisy_latents_and_timesteps(
             args, noise_scheduler, latents
         )
@@ -214,13 +215,15 @@ class NetworkTrainer:
             target = noise
 
         loss = torch.nn.functional.mse_loss(noise_pred.float(), target.float(), reduction="none")
+        if args.masked_loss:
+            loss = apply_masked_loss(loss, batch)
         loss = loss.mean([1, 2, 3])
 
-        loss_weights = batch["loss_weights"].to(accelerator.device)  # 各sampleごとのweight
+        loss_weights = batch["loss_weights"]  # 各sampleごとのweight
         loss = loss * loss_weights
 
         if args.min_snr_gamma:
-            loss = apply_snr_weight(loss, timesteps, noise_scheduler, args.min_snr_gamma)
+            loss = apply_snr_weight(loss, timesteps, noise_scheduler, args.min_snr_gamma, args.v_parameterization)
         if args.scale_v_pred_loss_like_noise_pred:
             loss = scale_v_prediction_loss_like_noise_prediction(loss, timesteps, noise_scheduler)
         if args.v_pred_like_loss:
@@ -254,7 +257,7 @@ class NetworkTrainer:
 
         # データセットを準備する
         if args.dataset_class is None:
-            blueprint_generator = BlueprintGenerator(ConfigSanitizer(True, True, False, True))
+            blueprint_generator = BlueprintGenerator(ConfigSanitizer(True, True, args.masked_loss, True))
             if use_user_config:
                 logger.info(f"Loading dataset config from {args.dataset_config}")
                 user_config = config_util.load_user_config(args.dataset_config)
@@ -447,8 +450,8 @@ class NetworkTrainer:
         optimizer_name, optimizer_args, optimizer = train_util.get_optimizer(args, trainable_params)
 
         # dataloaderを準備する
-        # DataLoaderのプロセス数：0はメインプロセスになる
-        n_workers = min(args.max_data_loader_n_workers, os.cpu_count() - 1)  # cpu_count-1 ただし最大で指定された数まで
+        # DataLoaderのプロセス数：0 は persistent_workers が使えないので注意
+        n_workers = min(args.max_data_loader_n_workers, os.cpu_count())  # cpu_count or max_data_loader_n_workers
 
         train_dataloader = torch.utils.data.DataLoader(
             train_dataset_group,
@@ -670,6 +673,11 @@ class NetworkTrainer:
                         "random_crop": bool(subset.random_crop),
                         "shuffle_caption": bool(subset.shuffle_caption),
                         "keep_tokens": subset.keep_tokens,
+                        "keep_tokens_separator": subset.keep_tokens_separator,
+                        "secondary_separator": subset.secondary_separator,
+                        "enable_wildcard": bool(subset.enable_wildcard),
+                        "caption_prefix": subset.caption_prefix,
+                        "caption_suffix": subset.caption_suffix,
                     }
 
                     image_dir_or_metadata_file = None
@@ -1033,6 +1041,7 @@ def setup_parser() -> argparse.ArgumentParser:
     train_util.add_sd_models_arguments(parser)
     train_util.add_dataset_arguments(parser, True, True, True)
     train_util.add_training_arguments(parser, True)
+    train_util.add_masked_loss_arguments(parser)
     train_util.add_optimizer_arguments(parser)
     config_util.add_config_arguments(parser)
     custom_train_functions.add_custom_train_arguments(parser)

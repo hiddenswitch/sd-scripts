@@ -1,4 +1,4 @@
-# Training Stable Cascade Stage C 
+# Training Stable Cascade Stage C
 
 This is an experimental feature. There may be bugs.
 
@@ -155,7 +155,7 @@ LoRA 使用時は `--network_module networks.lora --network_mul 1 --network_weig
   * `--f` Specifies the shift of the generation.
 
 
----  
+---
 
 __SDXL is now supported. The sdxl branch has been merged into the main branch. If you update the repository, please follow the upgrade instructions. Also, the version of accelerate has been updated, so please run accelerate config again.__ The documentation for SDXL training is [here](./README.md#sdxl-training).
 
@@ -408,7 +408,132 @@ ControlNet-LLLite, a novel method for ControlNet with SDXL, is added. See [docum
 
 ## Change History
 
+### Masked loss
+
+`train_network.py`, `sdxl_train_network.py` and `sdxl_train.py` now support the masked loss. `--masked_loss` option is added.
+
+NOTE: `train_network.py` and `sdxl_train.py` are not tested yet.
+
+ControlNet dataset is used to specify the mask. The mask images should be the RGB images. The pixel value 255 in R channel is treated as the mask (the loss is calculated only for the pixels with the mask), and 0 is treated as the non-mask. See details for the dataset specification in the [LLLite documentation](./docs/train_lllite_README.md#preparing-the-dataset).
+
+
 ### Working in progress
+
+- Colab seems to stop with log output. Try specifying `--console_log_simple` option in the training script to disable rich logging.
+- `train_network.py` and `sdxl_train_network.py` are modified to record some dataset settings in the metadata of the trained model (`caption_prefix`, `caption_suffix`, `keep_tokens_separator`, `secondary_separator`, `enable_wildcard`).
+- Some features are added to the dataset subset settings.
+  - `secondary_separator` is added to specify the tag separator that is not the target of shuffling or dropping.
+    - Specify `secondary_separator=";;;"`. When you specify `secondary_separator`, the part is not shuffled or dropped. See the example below.
+  - `enable_wildcard` is added. When set to `true`, the wildcard notation `{aaa|bbb|ccc}` can be used. See the example below.
+  - `keep_tokens_separator` is updated to be used twice in the caption. When you specify `keep_tokens_separator="|||"`, the part divided by the second `|||` is not shuffled or dropped and remains at the end.
+  - The existing features `caption_prefix` and `caption_suffix` can be used together. `caption_prefix` and `caption_suffix` are processed first, and then `enable_wildcard`, `keep_tokens_separator`, shuffling and dropping, and `secondary_separator` are processed in order.
+  - The examples are [shown below](#example-of-dataset-settings--データセット設定の記述例).
+
+
+- Colab での動作時、ログ出力で停止してしまうようです。学習スクリプトに `--console_log_simple` オプションを指定し、rich のロギングを無効してお試しください。
+- `train_network.py` および `sdxl_train_network.py` で、学習したモデルのメタデータに一部のデータセット設定が記録されるよう修正しました（`caption_prefix`、`caption_suffix`、`keep_tokens_separator`、`secondary_separator`、`enable_wildcard`）。
+- データセットのサブセット設定にいくつかの機能を追加しました。
+  - シャッフルの対象とならないタグ分割識別子の指定 `secondary_separator` を追加しました。`secondary_separator=";;;"` のように指定します。`secondary_separator` で区切ることで、その部分はシャッフル、drop 時にまとめて扱われます。詳しくは記述例をご覧ください。
+  - `enable_wildcard` を追加しました。`true` にするとワイルドカード記法 `{aaa|bbb|ccc}` が使えます。詳しくは記述例をご覧ください。
+  - `keep_tokens_separator` をキャプション内に 2 つ使えるようにしました。たとえば `keep_tokens_separator="|||"` と指定したとき、`1girl, hatsune miku, vocaloid ||| stage, mic ||| best quality, rating: general` とキャプションを指定すると、二番目の `|||` で分割された部分はシャッフル、drop されず末尾に残ります。
+  - 既存の機能 `caption_prefix` と `caption_suffix` とあわせて使えます。`caption_prefix` と `caption_suffix` は一番最初に処理され、その後、ワイルドカード、`keep_tokens_separator`、シャッフルおよび drop、`secondary_separator` の順に処理されます。
+
+#### Example of dataset settings / データセット設定の記述例:
+
+```toml
+[general]
+flip_aug = true
+color_aug = false
+resolution = [1024, 1024]
+
+[[datasets]]
+batch_size = 6
+enable_bucket = true
+bucket_no_upscale = true
+caption_extension = ".txt"
+keep_tokens_separator= "|||"
+shuffle_caption = true
+caption_tag_dropout_rate = 0.1
+secondary_separator = ";;;" # subset 側に書くこともできます / can be written in the subset side
+enable_wildcard = true # 同上 / same as above
+
+  [[datasets.subsets]]
+  image_dir = "/path/to/image_dir"
+  num_repeats = 1
+
+  # ||| の前後はカンマは不要です（自動的に追加されます） / No comma is required before and after ||| (it is added automatically)
+  caption_prefix = "1girl, hatsune miku, vocaloid |||"
+
+  # ||| の後はシャッフル、drop されず残ります / After |||, it is not shuffled or dropped and remains
+  # 単純に文字列として連結されるので、カンマなどは自分で入れる必要があります / It is simply concatenated as a string, so you need to put commas yourself
+  caption_suffix = ", anime screencap ||| masterpiece, rating: general"
+```
+
+#### Example of caption, secondary_separator notation: `secondary_separator = ";;;"`
+
+```txt
+1girl, hatsune miku, vocaloid, upper body, looking at viewer, sky;;;cloud;;;day, outdoors
+```
+The part `sky;;;cloud;;;day` is replaced with `sky,cloud,day` without shuffling or dropping. When shuffling and dropping are enabled, it is processed as a whole (as one tag). For example, it becomes `vocaloid, 1girl, upper body, sky,cloud,day, outdoors, hatsune miku` (shuffled) or `vocaloid, 1girl, outdoors, looking at viewer, upper body, hatsune miku` (dropped).
+
+#### Example of caption, enable_wildcard notation: `enable_wildcard = true`
+
+```txt
+1girl, hatsune miku, vocaloid, upper body, looking at viewer, {simple|white} background
+```
+`simple` or `white` is randomly selected, and it becomes `simple background` or `white background`.
+
+```txt
+1girl, hatsune miku, vocaloid, {{retro style}}
+```
+If you want to include `{` or `}` in the tag string, double them like `{{` or `}}` (in this example, the actual caption used for training is `{retro style}`).
+
+#### Example of caption, `keep_tokens_separator` notation: `keep_tokens_separator = "|||"`
+
+```txt
+1girl, hatsune miku, vocaloid ||| stage, microphone, white shirt, smile ||| best quality, rating: general
+```
+It becomes `1girl, hatsune miku, vocaloid, microphone, stage, white shirt, best quality, rating: general` or `1girl, hatsune miku, vocaloid, white shirt, smile, stage, microphone, best quality, rating: general` etc.
+
+
+#### キャプション記述例、secondary_separator 記法：`secondary_separator = ";;;"` の場合
+
+```txt
+1girl, hatsune miku, vocaloid, upper body, looking at viewer, sky;;;cloud;;;day, outdoors
+```
+`sky;;;cloud;;;day` の部分はシャッフル、drop されず `sky,cloud,day` に置換されます。シャッフル、drop が有効な場合、まとめて（一つのタグとして）処理されます。つまり `vocaloid, 1girl, upper body, sky,cloud,day, outdoors, hatsune miku` （シャッフル）や `vocaloid, 1girl, outdoors, looking at viewer, upper body, hatsune miku` （drop されたケース）などになります。
+
+#### キャプション記述例、ワイルドカード記法： `enable_wildcard = true` の場合
+
+```txt
+1girl, hatsune miku, vocaloid, upper body, looking at viewer, {simple|white} background
+```
+ランダムに `simple` または `white` が選ばれ、`simple background` または `white background` になります。
+
+```txt
+1girl, hatsune miku, vocaloid, {{retro style}}
+```
+タグ文字列に `{` や `}` そのものを含めたい場合は `{{` や `}}` のように二つ重ねてください（この例では実際に学習に用いられるキャプションは `{retro style}` になります）。
+
+#### キャプション記述例、`keep_tokens_separator` 記法： `keep_tokens_separator = "|||"` の場合
+
+```txt
+1girl, hatsune miku, vocaloid ||| stage, microphone, white shirt, smile ||| best quality, rating: general
+```
+`1girl, hatsune miku, vocaloid, microphone, stage, white shirt, best quality, rating: general` や `1girl, hatsune miku, vocaloid, white shirt, smile, stage, microphone, best quality, rating: general` などになります。
+
+
+### Mar 15, 2024 / 2024/3/15: v0.8.5
+
+- Fixed a bug that the value of timestep embedding during SDXL training was incorrect.
+  - The inference with the generation script is also fixed.
+  - The impact is unknown, but please update for SDXL training.
+
+- SDXL 学習時の timestep embedding の値が誤っていたのを修正しました。
+  - 生成スクリプトでの推論時についてもあわせて修正しました。
+  - 影響の度合いは不明ですが、SDXL の学習時にはアップデートをお願いいたします。
+
+### Feb 24, 2024 / 2024/2/24: v0.8.4
 
 - The log output has been improved. PR [#905](https://github.com/kohya-ss/sd-scripts/pull/905) Thanks to shirayu!
   - The log is formatted by default. The `rich` library is required. Please see [Upgrade](#upgrade) and update the library.
@@ -419,10 +544,12 @@ ControlNet-LLLite, a novel method for ControlNet with SDXL, is added. See [docum
   - `--console_log_file` option can be used to output the log to a file. The default is `None` (output to the console).
 - The sample image generation during multi-GPU training is now done with multiple GPUs. PR [#1061](https://github.com/kohya-ss/sd-scripts/pull/1061) Thanks to DKnight54!
 - The support for mps devices is improved. PR [#1054](https://github.com/kohya-ss/sd-scripts/pull/1054) Thanks to akx! If mps device exists instead of CUDA, the mps device is used automatically.
+- The `--new_conv_rank` option to specify the new rank of Conv2d is added to `networks/resize_lora.py`. PR [#1102](https://github.com/kohya-ss/sd-scripts/pull/1102) Thanks to mgz-dev!
 - An option `--highvram` to disable the optimization for environments with little VRAM is added to the training scripts. If you specify it when there is enough VRAM, the operation will be faster.
   - Currently, only the cache part of latents is optimized.
 - The IPEX support is improved. PR [#1086](https://github.com/kohya-ss/sd-scripts/pull/1086) Thanks to Disty0!
 - Fixed a bug that `svd_merge_lora.py` crashes in some cases. PR [#1087](https://github.com/kohya-ss/sd-scripts/pull/1087) Thanks to mgz-dev!
+- DyLoRA is fixed to work with SDXL. PR [#1126](https://github.com/kohya-ss/sd-scripts/pull/1126) Thanks to tamlog06!
 - The common image generation script `gen_img.py` for SD 1/2 and SDXL is added. The basic functions are the same as the scripts for SD 1/2 and SDXL, but some new features are added.
   - External scripts to generate prompts can be supported. It can be called with `--from_module` option. (The documentation will be added later)
   - The normalization method after prompt weighting can be specified with `--emb_normalize_mode` option. `original` is the original method, `abs` is the normalization with the average of the absolute values, `none` is no normalization.
@@ -437,10 +564,12 @@ ControlNet-LLLite, a novel method for ControlNet with SDXL, is added. See [docum
   - `--console_log_file` でログファイルを出力できます。デフォルトは `None`（コンソールに出力） です。
 - 複数 GPU 学習時に学習中のサンプル画像生成を複数 GPU で行うようになりました。 PR [#1061](https://github.com/kohya-ss/sd-scripts/pull/1061) DKnight54 氏に感謝します。
 - mps デバイスのサポートが改善されました。 PR [#1054](https://github.com/kohya-ss/sd-scripts/pull/1054) akx 氏に感謝します。CUDA ではなく mps が存在する場合には自動的に mps デバイスを使用します。
+- `networks/resize_lora.py` に Conv2d の新しいランクを指定するオプション `--new_conv_rank` が追加されました。 PR [#1102](https://github.com/kohya-ss/sd-scripts/pull/1102) mgz-dev 氏に感謝します。
 - 学習スクリプトに VRAMが少ない環境向け最適化を無効にするオプション `--highvram` を追加しました。VRAM に余裕がある場合に指定すると動作が高速化されます。
   - 現在は latents のキャッシュ部分のみ高速化されます。
 - IPEX サポートが改善されました。 PR [#1086](https://github.com/kohya-ss/sd-scripts/pull/1086) Disty0 氏に感謝します。
 - `svd_merge_lora.py` が場合によってエラーになる不具合が修正されました。 PR [#1087](https://github.com/kohya-ss/sd-scripts/pull/1087) mgz-dev 氏に感謝します。
+- DyLoRA が SDXL で動くよう修正されました。PR [#1126](https://github.com/kohya-ss/sd-scripts/pull/1126) tamlog06 氏に感謝します。
 - SD 1/2 および SDXL 共通の生成スクリプト `gen_img.py` を追加しました。基本的な機能は SD 1/2、SDXL 向けスクリプトと同じですが、いくつかの新機能が追加されています。
   - プロンプトを動的に生成する外部スクリプトをサポートしました。 `--from_module` で呼び出せます。（ドキュメントはのちほど追加します）
   - プロンプト重みづけ後の正規化方法を `--emb_normalize_mode` で指定できます。`original` は元の方法、`abs` は絶対値の平均値で正規化、`none` は正規化を行いません。

@@ -382,6 +382,8 @@ class BaseSubset:
         caption_separator: str,
         keep_tokens: int,
         keep_tokens_separator: str,
+        secondary_separator: Optional[str],
+        enable_wildcard: bool,
         color_aug: bool,
         flip_aug: bool,
         face_crop_aug_range: Optional[Tuple[float, float]],
@@ -400,6 +402,8 @@ class BaseSubset:
         self.caption_separator = caption_separator
         self.keep_tokens = keep_tokens
         self.keep_tokens_separator = keep_tokens_separator
+        self.secondary_separator = secondary_separator
+        self.enable_wildcard = enable_wildcard
         self.color_aug = color_aug
         self.flip_aug = flip_aug
         self.face_crop_aug_range = face_crop_aug_range
@@ -428,6 +432,8 @@ class DreamBoothSubset(BaseSubset):
         caption_separator: str,
         keep_tokens,
         keep_tokens_separator,
+        secondary_separator,
+        enable_wildcard,
         color_aug,
         flip_aug,
         face_crop_aug_range,
@@ -449,6 +455,8 @@ class DreamBoothSubset(BaseSubset):
             caption_separator,
             keep_tokens,
             keep_tokens_separator,
+            secondary_separator,
+            enable_wildcard,
             color_aug,
             flip_aug,
             face_crop_aug_range,
@@ -484,6 +492,8 @@ class FineTuningSubset(BaseSubset):
         caption_separator,
         keep_tokens,
         keep_tokens_separator,
+        secondary_separator,
+        enable_wildcard,
         color_aug,
         flip_aug,
         face_crop_aug_range,
@@ -505,6 +515,8 @@ class FineTuningSubset(BaseSubset):
             caption_separator,
             keep_tokens,
             keep_tokens_separator,
+            secondary_separator,
+            enable_wildcard,
             color_aug,
             flip_aug,
             face_crop_aug_range,
@@ -537,6 +549,8 @@ class ControlNetSubset(BaseSubset):
         caption_separator,
         keep_tokens,
         keep_tokens_separator,
+        secondary_separator,
+        enable_wildcard,
         color_aug,
         flip_aug,
         face_crop_aug_range,
@@ -558,6 +572,8 @@ class ControlNetSubset(BaseSubset):
             caption_separator,
             keep_tokens,
             keep_tokens_separator,
+            secondary_separator,
+            enable_wildcard,
             color_aug,
             flip_aug,
             face_crop_aug_range,
@@ -693,15 +709,41 @@ class BaseDataset(torch.utils.data.Dataset):
         if is_drop_out:
             caption = ""
         else:
+            # process wildcards
+            if subset.enable_wildcard:
+                # wildcard is like '{aaa|bbb|ccc...}'
+                # escape the curly braces like {{ or }}
+                replacer1 = "⦅"
+                replacer2 = "⦆"
+                while replacer1 in caption or replacer2 in caption:
+                    replacer1 += "⦅"
+                    replacer2 += "⦆"
+
+                caption = caption.replace("{{", replacer1).replace("}}", replacer2)
+
+                # replace the wildcard
+                def replace_wildcard(match):
+                    return random.choice(match.group(1).split("|"))
+
+                caption = re.sub(r"\{([^}]+)\}", replace_wildcard, caption)
+
+                # unescape the curly braces
+                caption = caption.replace(replacer1, "{").replace(replacer2, "}")
+
             if subset.shuffle_caption or subset.token_warmup_step > 0 or subset.caption_tag_dropout_rate > 0:
                 fixed_tokens = []
                 flex_tokens = []
+                fixed_suffix_tokens = []
                 if (
                     hasattr(subset, "keep_tokens_separator")
                     and subset.keep_tokens_separator
                     and subset.keep_tokens_separator in caption
                 ):
                     fixed_part, flex_part = caption.split(subset.keep_tokens_separator, 1)
+                    if subset.keep_tokens_separator in flex_part:
+                        flex_part, fixed_suffix_part = flex_part.split(subset.keep_tokens_separator, 1)
+                        fixed_suffix_tokens = [t.strip() for t in fixed_suffix_part.split(subset.caption_separator) if t.strip()]
+
                     fixed_tokens = [t.strip() for t in fixed_part.split(subset.caption_separator) if t.strip()]
                     flex_tokens = [t.strip() for t in flex_part.split(subset.caption_separator) if t.strip()]
                 else:
@@ -736,7 +778,11 @@ class BaseDataset(torch.utils.data.Dataset):
 
                 flex_tokens = dropout_tags(flex_tokens)
 
-                caption = ", ".join(fixed_tokens + flex_tokens)
+                caption = ", ".join(fixed_tokens + flex_tokens + fixed_suffix_tokens)
+
+            # process secondary separator
+            if subset.secondary_separator:
+                caption = caption.replace(subset.secondary_separator, subset.caption_separator)
 
             # textual inversion対応
             for str_from, str_to in self.replacements.items():
@@ -1799,6 +1845,9 @@ class ControlNetDataset(BaseDataset):
 
         db_subsets = []
         for subset in subsets:
+            assert (
+                not subset.random_crop
+            ), "random_crop is not supported in ControlNetDataset / random_cropはControlNetDatasetではサポートされていません"
             db_subset = DreamBoothSubset(
                 subset.image_dir,
                 False,
@@ -1809,6 +1858,8 @@ class ControlNetDataset(BaseDataset):
                 subset.caption_separator,
                 subset.keep_tokens,
                 subset.keep_tokens_separator,
+                subset.secondary_separator,
+                subset.enable_wildcard,
                 subset.color_aug,
                 subset.flip_aug,
                 subset.face_crop_aug_range,
@@ -1847,7 +1898,7 @@ class ControlNetDataset(BaseDataset):
 
         # assert all conditioning data exists
         missing_imgs = []
-        cond_imgs_with_img = set()
+        cond_imgs_with_pair = set()
         for image_key, info in self.dreambooth_dataset_delegate.image_data.items():
             db_subset = self.dreambooth_dataset_delegate.image_to_subset[image_key]
             subset = None
@@ -1861,23 +1912,29 @@ class ControlNetDataset(BaseDataset):
                 logger.warning(f"not directory: {subset.conditioning_data_dir}")
                 continue
 
-            img_basename = os.path.basename(info.absolute_path)
-            ctrl_img_path = os.path.join(subset.conditioning_data_dir, img_basename)
-            if not os.path.exists(ctrl_img_path):
+            img_basename = os.path.splitext(os.path.basename(info.absolute_path))[0]
+            ctrl_img_path = glob_images(subset.conditioning_data_dir, img_basename)
+            if len(ctrl_img_path) < 1:
                 missing_imgs.append(img_basename)
+                continue
+            ctrl_img_path = ctrl_img_path[0]
+            ctrl_img_path = os.path.abspath(ctrl_img_path)  # normalize path
 
             info.cond_img_path = ctrl_img_path
-            cond_imgs_with_img.add(ctrl_img_path)
+            cond_imgs_with_pair.add(os.path.splitext(ctrl_img_path)[0])  # remove extension because Windows is case insensitive
 
         extra_imgs = []
         for subset in subsets:
             conditioning_img_paths = glob_images(subset.conditioning_data_dir, "*")
-            extra_imgs.extend(
-                [cond_img_path for cond_img_path in conditioning_img_paths if cond_img_path not in cond_imgs_with_img]
-            )
+            conditioning_img_paths = [os.path.abspath(p) for p in conditioning_img_paths]  # normalize path
+            extra_imgs.extend([p for p in conditioning_img_paths if os.path.splitext(p)[0] not in cond_imgs_with_pair])
 
-        assert len(missing_imgs) == 0, f"missing conditioning data for {len(missing_imgs)} images: {missing_imgs}"
-        assert len(extra_imgs) == 0, f"extra conditioning data for {len(extra_imgs)} images: {extra_imgs}"
+        assert (
+            len(missing_imgs) == 0
+        ), f"missing conditioning data for {len(missing_imgs)} images / 制御用画像が見つかりませんでした: {missing_imgs}"
+        assert (
+            len(extra_imgs) == 0
+        ), f"extra conditioning data for {len(extra_imgs)} images / 余分な制御用画像があります: {extra_imgs}"
 
         self.conditioning_image_transforms = IMAGE_TRANSFORMS
 
@@ -3038,6 +3095,7 @@ def add_training_arguments(parser: argparse.ArgumentParser, support_dreambooth: 
         "--full_bf16", action="store_true", help="bf16 training including gradients / 勾配も含めてbf16で学習する"
     )  # TODO move to SDXL training, because it is not supported by SD1/2
     parser.add_argument("--fp8_base", action="store_true", help="use fp8 for base model / base modelにfp8を使う")
+
     parser.add_argument(
         "--ddp_timeout",
         type=int,
@@ -3100,6 +3158,7 @@ def add_training_arguments(parser: argparse.ArgumentParser, support_dreambooth: 
         default=None,
         help="specify WandB API key to log in before starting training (optional). / WandB APIキーを指定して学習開始前にログインする（オプション）",
     )
+
     parser.add_argument(
         "--noise_offset",
         type=float,
@@ -3266,6 +3325,20 @@ def add_training_arguments(parser: argparse.ArgumentParser, support_dreambooth: 
         )
 
 
+def add_masked_loss_arguments(parser: argparse.ArgumentParser):
+    parser.add_argument(
+        "--conditioning_data_dir",
+        type=str,
+        default=None,
+        help="conditioning data directory / 条件付けデータのディレクトリ",
+    )
+    parser.add_argument(
+        "--masked_loss",
+        action="store_true",
+        help="apply mask for calculating loss. conditioning_data_dir is required for dataset. / 損失計算時にマスクを適用する。datasetにはconditioning_data_dirが必要",
+    )
+
+
 def verify_training_args(args: argparse.Namespace):
     r"""
     Verify training arguments. Also reflect highvram option to global variable
@@ -3358,6 +3431,18 @@ def add_dataset_arguments(
         default="",
         help="A custom separator to divide the caption into fixed and flexible parts. Tokens before this separator will not be shuffled. If not specified, '--keep_tokens' will be used to determine the fixed number of tokens."
         + " / captionを固定部分と可変部分に分けるためのカスタム区切り文字。この区切り文字より前のトークンはシャッフルされない。指定しない場合、'--keep_tokens'が固定部分のトークン数として使用される。",
+    )
+    parser.add_argument(
+        "--secondary_separator",
+        type=str,
+        default=None,
+        help="a secondary separator for caption. This separator is replaced to caption_separator after dropping/shuffling caption"
+        + " / captionのセカンダリ区切り文字。この区切り文字はcaptionのドロップやシャッフル後にcaption_separatorに置き換えられる",
+    )
+    parser.add_argument(
+        "--enable_wildcard",
+        action="store_true",
+        help="enable wildcard for caption (e.g. '{image|picture|rendition}') / captionのワイルドカードを有効にする（例：'{image|picture|rendition}'）",
     )
     parser.add_argument(
         "--caption_prefix",
