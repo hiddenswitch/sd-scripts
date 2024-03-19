@@ -470,7 +470,6 @@ class BlueprintGenerator:
 def generate_dataset_group_by_blueprint(dataset_group_blueprint: DatasetGroupBlueprint):
     datasets: List[Union[DreamBoothDataset, FineTuningDataset, ControlNetDataset]] = []
 
-    val_split = False
     for dataset_blueprint in dataset_group_blueprint.datasets:
         if dataset_blueprint.is_controlnet:
             subset_klass = ControlNetSubset
@@ -478,17 +477,13 @@ def generate_dataset_group_by_blueprint(dataset_group_blueprint: DatasetGroupBlu
         elif dataset_blueprint.is_dreambooth:
             subset_klass = DreamBoothSubset
             dataset_klass = DreamBoothDataset
-            val_split = True
         else:
             subset_klass = FineTuningSubset
             dataset_klass = FineTuningDataset
 
-    subsets = [subset_klass(**asdict(subset_blueprint.params)) for subset_blueprint in dataset_blueprint.subsets]
-    if (val_split):
+        subsets = [subset_klass(**asdict(subset_blueprint.params)) for subset_blueprint in dataset_blueprint.subsets]
         dataset = dataset_klass(subsets=subsets, is_train=True, **asdict(dataset_blueprint.params))
-    else:
-        dataset = dataset_klass(subsets=subsets, **asdict(dataset_blueprint.params))
-    datasets.append(dataset)
+        datasets.append(dataset)
 
     val_datasets: List[Union[DreamBoothDataset, FineTuningDataset, ControlNetDataset]] = []
     for dataset_blueprint in dataset_group_blueprint.datasets:
@@ -509,18 +504,20 @@ def generate_dataset_group_by_blueprint(dataset_group_blueprint: DatasetGroupBlu
         val_datasets.append(dataset)
 
     # print info
-    def print_info(_datasets):
+    def get_info(datasets):
         info = ""
-        for i, dataset in enumerate(_datasets):
+        for i, dataset in enumerate(datasets):
             is_dreambooth = isinstance(dataset, DreamBoothDataset)
             is_controlnet = isinstance(dataset, ControlNetDataset)
-            info += dedent(f"""\
-                [Dataset {i}]
-                  batch_size: {dataset.batch_size}
-                  resolution: {(dataset.width, dataset.height)}
-                  enable_bucket: {dataset.enable_bucket}
-                  network_multiplier: {dataset.network_multiplier}
-            """)
+            info += dedent(
+                f"""\
+          [Dataset {i}]
+            batch_size: {dataset.batch_size}
+            resolution: {(dataset.width, dataset.height)}
+            enable_bucket: {dataset.enable_bucket}
+            network_multiplier: {dataset.network_multiplier}
+        """
+            )
 
             if dataset.enable_bucket:
                 info += indent(dedent(f"""\
@@ -532,54 +529,49 @@ def generate_dataset_group_by_blueprint(dataset_group_blueprint: DatasetGroupBlu
             else:
                 info += "\n"
 
-        for j, subset in enumerate(dataset.subsets):
-            info += indent(
-                dedent(
-                    f"""\
-        [Subset {j} of Dataset {i}]
-          image_dir: "{subset.image_dir}"
-          image_count: {subset.img_count}
-          num_repeats: {subset.num_repeats}
-          shuffle_caption: {subset.shuffle_caption}
-          keep_tokens: {subset.keep_tokens}
-          keep_tokens_separator: {subset.keep_tokens_separator}
-          secondary_separator: {subset.secondary_separator}
-          enable_wildcard: {subset.enable_wildcard}
-          caption_dropout_rate: {subset.caption_dropout_rate}
-          caption_dropout_every_n_epoches: {subset.caption_dropout_every_n_epochs}
-          caption_tag_dropout_rate: {subset.caption_tag_dropout_rate}
-          caption_prefix: {subset.caption_prefix}
-          caption_suffix: {subset.caption_suffix}
-          color_aug: {subset.color_aug}
-          flip_aug: {subset.flip_aug}
-          face_crop_aug_range: {subset.face_crop_aug_range}
-          random_crop: {subset.random_crop}
-          token_warmup_min: {subset.token_warmup_min},
-          token_warmup_step: {subset.token_warmup_step},
-      """
-                ),
-                "  ",
-            )
+            for j, subset in enumerate(dataset.subsets):
+                info += indent(
+                    dedent(
+                        f"""\
+            [Subset {j} of Dataset {i}]
+              image_dir: "{subset.image_dir}"
+              image_count: {subset.img_count}
+              num_repeats: {subset.num_repeats}
+              shuffle_caption: {subset.shuffle_caption}
+              keep_tokens: {subset.keep_tokens}
+              keep_tokens_separator: {subset.keep_tokens_separator}
+              secondary_separator: {subset.secondary_separator}
+              enable_wildcard: {subset.enable_wildcard}
+              caption_dropout_rate: {subset.caption_dropout_rate}
+              caption_dropout_every_n_epoches: {subset.caption_dropout_every_n_epochs}
+              caption_tag_dropout_rate: {subset.caption_tag_dropout_rate}
+              caption_prefix: {subset.caption_prefix}
+              caption_suffix: {subset.caption_suffix}
+              color_aug: {subset.color_aug}
+              flip_aug: {subset.flip_aug}
+              face_crop_aug_range: {subset.face_crop_aug_range}
+              random_crop: {subset.random_crop}
+              token_warmup_min: {subset.token_warmup_min},
+              token_warmup_step: {subset.token_warmup_step},
+                """
+                    ),
+                    "  ",
+                )
 
-            if is_dreambooth:
-                info += indent(dedent(f"""\
-                        is_reg: {subset.is_reg}
-                        class_tokens: {subset.class_tokens}
-                        caption_extension: {subset.caption_extension}
-                    \n"""), "        ")
-            elif not is_controlnet:
-                info += indent(dedent(f"""\
-                        metadata_file: {subset.metadata_file}
-                    \n"""), "        ")
+                if is_dreambooth:
+                    info += indent(dedent(f"""\
+                            is_reg: {subset.is_reg}
+                            class_tokens: {subset.class_tokens}
+                            caption_extension: {subset.caption_extension}
+                        \n"""), "        ")
+                elif not is_controlnet:
+                    info += indent(dedent(f"""\
+                            metadata_file: {subset.metadata_file}
+                        \n"""), "        ")
+        return info
 
-    # TODO: fix info so that I can print info to logger here
-    # logger.info(f'{info}')
-
-    print_info(datasets)
-
-    if len(val_datasets) > 0:
-        print("Validation dataset")
-        print_info(val_datasets)
+    info = get_info(datasets)
+    logger.info(f'{info}')
 
     # make buckets first because it determines the length of dataset
     # and set the same seed for all datasets
