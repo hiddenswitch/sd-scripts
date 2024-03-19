@@ -470,6 +470,7 @@ class BlueprintGenerator:
 def generate_dataset_group_by_blueprint(dataset_group_blueprint: DatasetGroupBlueprint):
     datasets: List[Union[DreamBoothDataset, FineTuningDataset, ControlNetDataset]] = []
 
+    val_split = False
     for dataset_blueprint in dataset_group_blueprint.datasets:
         if dataset_blueprint.is_controlnet:
             subset_klass = ControlNetSubset
@@ -477,12 +478,16 @@ def generate_dataset_group_by_blueprint(dataset_group_blueprint: DatasetGroupBlu
         elif dataset_blueprint.is_dreambooth:
             subset_klass = DreamBoothSubset
             dataset_klass = DreamBoothDataset
+            val_split = True
         else:
             subset_klass = FineTuningSubset
             dataset_klass = FineTuningDataset
 
     subsets = [subset_klass(**asdict(subset_blueprint.params)) for subset_blueprint in dataset_blueprint.subsets]
-    dataset = dataset_klass(subsets=subsets, is_train=True, **asdict(dataset_blueprint.params))
+    if (val_split):
+        dataset = dataset_klass(subsets=subsets, is_train=True, **asdict(dataset_blueprint.params))
+    else:
+        dataset = dataset_klass(subsets=subsets, **asdict(dataset_blueprint.params))
     datasets.append(dataset)
 
     val_datasets: List[Union[DreamBoothDataset, FineTuningDataset, ControlNetDataset]] = []
@@ -566,7 +571,6 @@ def generate_dataset_group_by_blueprint(dataset_group_blueprint: DatasetGroupBlu
                 info += indent(dedent(f"""\
                         metadata_file: {subset.metadata_file}
                     \n"""), "        ")
-
 
     # TODO: fix info so that I can print info to logger here
     # logger.info(f'{info}')
