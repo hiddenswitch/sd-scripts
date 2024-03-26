@@ -81,6 +81,12 @@ class LoRAModule(torch.nn.Module):
         self.rank_dropout = rank_dropout
         self.module_dropout = module_dropout
 
+    def reinitialize_weights(self):
+        for module in self.modules():
+            if isinstance(module, LoRAModule):
+                torch.nn.init.kaiming_uniform_(module.lora_down.weight, a=math.sqrt(5))
+                torch.nn.init.zeros_(module.lora_up.weight)
+                
     def apply_to(self):
         self.org_forward = self.org_module.forward
         self.org_module.forward = self.forward
@@ -294,10 +300,10 @@ class LoRAInfModule(LoRAModule):
 
         for i in range(self.network.batch_size):
             qi = self.network.batch_size + i * self.network.num_sub_prompts
-            query[qi : qi + self.network.num_sub_prompts] = x[self.network.batch_size + i]
+            query[qi: qi + self.network.num_sub_prompts] = x[self.network.batch_size + i]
 
         if has_real_uncond:
-            query[-self.network.batch_size :] = x[-self.network.batch_size :]
+            query[-self.network.batch_size:] = x[-self.network.batch_size:]
 
         # logger.info(f"postp_to_q {self.lora_name} {x.size()} {query.size()} {self.network.num_sub_prompts}")
         return query
@@ -311,13 +317,13 @@ class LoRAInfModule(LoRAModule):
             emb_idx += self.network.batch_size
 
         # apply sub prompt of X
-        lx = x[emb_idx :: self.network.num_sub_prompts]
+        lx = x[emb_idx:: self.network.num_sub_prompts]
         lx = self.lora_up(self.lora_down(lx)) * self.multiplier * self.scale
 
         # logger.info(f"sub_prompt_forward {self.lora_name} {x.size()} {lx.size()} {emb_idx}")
 
         x = self.org_forward(x)
-        x[emb_idx :: self.network.num_sub_prompts] += lx
+        x[emb_idx:: self.network.num_sub_prompts] += lx
 
         return x
 
@@ -331,17 +337,18 @@ class LoRAInfModule(LoRAModule):
             lx, masks = self.network.shared[self.lora_name]
 
         # call own LoRA
-        x1 = x[self.network.batch_size + self.network.sub_prompt_index :: self.network.num_sub_prompts]
+        x1 = x[self.network.batch_size + self.network.sub_prompt_index:: self.network.num_sub_prompts]
         lx1 = self.lora_up(self.lora_down(x1)) * self.multiplier * self.scale
 
         if self.network.is_last_network:
             lx = torch.zeros(
-                (self.network.num_sub_prompts * self.network.batch_size, *lx1.size()[1:]), device=lx1.device, dtype=lx1.dtype
+                (self.network.num_sub_prompts * self.network.batch_size, *lx1.size()[1:]), device=lx1.device,
+                dtype=lx1.dtype
             )
             self.network.shared[self.lora_name] = (lx, masks)
 
         # logger.info(f"to_out_forward {lx.size()} {lx1.size()} {self.network.sub_prompt_index} {self.network.num_sub_prompts}")
-        lx[self.network.sub_prompt_index :: self.network.num_sub_prompts] += lx1
+        lx[self.network.sub_prompt_index:: self.network.num_sub_prompts] += lx1
         masks[self.network.sub_prompt_index] = self.get_mask_for_x(lx1)
 
         # if not last network, return x and masks
@@ -354,10 +361,11 @@ class LoRAInfModule(LoRAModule):
         # if last network, combine separated x with mask weighted sum
         has_real_uncond = x.size()[0] // self.network.batch_size == self.network.num_sub_prompts + 2
 
-        out = torch.zeros((self.network.batch_size * (3 if has_real_uncond else 2), *x.size()[1:]), device=x.device, dtype=x.dtype)
+        out = torch.zeros((self.network.batch_size * (3 if has_real_uncond else 2), *x.size()[1:]), device=x.device,
+                          dtype=x.dtype)
         out[: self.network.batch_size] = x[: self.network.batch_size]  # uncond
         if has_real_uncond:
-            out[-self.network.batch_size :] = x[-self.network.batch_size :]  # real_uncond
+            out[-self.network.batch_size:] = x[-self.network.batch_size:]  # real_uncond
 
         # logger.info(f"to_out_forward {self.lora_name} {self.network.sub_prompt_index} {self.network.num_sub_prompts}")
         # if num_sub_prompts > num of LoRAs, fill with zero
@@ -369,12 +377,12 @@ class LoRAInfModule(LoRAModule):
         mask_sum = torch.sum(mask, dim=0) + 1e-4
         for i in range(self.network.batch_size):
             # 1枚の画像ごとに処理する
-            lx1 = lx[i * self.network.num_sub_prompts : (i + 1) * self.network.num_sub_prompts]
+            lx1 = lx[i * self.network.num_sub_prompts: (i + 1) * self.network.num_sub_prompts]
             lx1 = lx1 * mask
             lx1 = torch.sum(lx1, dim=0)
 
             xi = self.network.batch_size + i * self.network.num_sub_prompts
-            x1 = x[xi : xi + self.network.num_sub_prompts]
+            x1 = x[xi: xi + self.network.num_sub_prompts]
             x1 = x1 * mask
             x1 = torch.sum(x1, dim=0)
             x1 = x1 / mask_sum
@@ -451,7 +459,8 @@ def create_network(
         conv_block_alphas = kwargs.get("conv_block_alphas", None)
 
         block_dims, block_alphas, conv_block_dims, conv_block_alphas = get_block_dims_and_alphas(
-            block_dims, block_alphas, network_dim, network_alpha, conv_block_dims, conv_block_alphas, conv_dim, conv_alpha
+            block_dims, block_alphas, network_dim, network_alpha, conv_block_dims, conv_block_alphas, conv_dim,
+            conv_alpha
         )
 
         # remove block dim/alpha without learning rate
@@ -607,15 +616,18 @@ def get_block_lr_weight(
     if type(up_lr_weight) == str:
         up_lr_weight = get_list(up_lr_weight)
 
-    if (up_lr_weight != None and len(up_lr_weight) > max_len) or (down_lr_weight != None and len(down_lr_weight) > max_len):
+    if (up_lr_weight != None and len(up_lr_weight) > max_len) or (
+        down_lr_weight != None and len(down_lr_weight) > max_len):
         logger.warning("down_weight or up_weight is too long. Parameters after %d-th are ignored." % max_len)
         logger.warning("down_weightもしくはup_weightが長すぎます。%d個目以降のパラメータは無視されます。" % max_len)
         up_lr_weight = up_lr_weight[:max_len]
         down_lr_weight = down_lr_weight[:max_len]
 
-    if (up_lr_weight != None and len(up_lr_weight) < max_len) or (down_lr_weight != None and len(down_lr_weight) < max_len):
+    if (up_lr_weight != None and len(up_lr_weight) < max_len) or (
+        down_lr_weight != None and len(down_lr_weight) < max_len):
         logger.warning("down_weight or up_weight is too short. Parameters after %d-th are filled with 1." % max_len)
-        logger.warning("down_weightもしくはup_weightが短すぎます。%d個目までの不足したパラメータは1で補われます。" % max_len)
+        logger.warning(
+            "down_weightもしくはup_weightが短すぎます。%d個目までの不足したパラメータは1で補われます。" % max_len)
 
         if down_lr_weight != None and len(down_lr_weight) < max_len:
             down_lr_weight = down_lr_weight + [1.0] * (max_len - len(down_lr_weight))
@@ -699,7 +711,8 @@ def get_block_index(lora_name: str) -> int:
 
 
 # Create network from weights for inference, weights are not loaded here (because can be merged)
-def create_network_from_weights(multiplier, file, vae, text_encoder, unet, weights_sd=None, for_inference=False, **kwargs):
+def create_network_from_weights(multiplier, file, vae, text_encoder, unet, weights_sd=None, for_inference=False,
+                                **kwargs):
     if weights_sd is None:
         if os.path.splitext(file)[1] == ".safetensors":
             from safetensors.torch import load_file, safe_open
@@ -731,7 +744,8 @@ def create_network_from_weights(multiplier, file, vae, text_encoder, unet, weigh
     module_class = LoRAInfModule if for_inference else LoRAModule
 
     network = LoRANetwork(
-        text_encoder, unet, multiplier=multiplier, modules_dim=modules_dim, modules_alpha=modules_alpha, module_class=module_class
+        text_encoder, unet, multiplier=multiplier, modules_dim=modules_dim, modules_alpha=modules_alpha,
+        module_class=module_class
     )
 
     # block lr
@@ -879,7 +893,8 @@ class LoRANetwork(torch.nn.Module):
 
                             if dim is None or dim == 0:
                                 # skipした情報を出力
-                                if is_linear or is_conv2d_1x1 or (self.conv_lora_dim is not None or conv_block_dims is not None):
+                                if is_linear or is_conv2d_1x1 or (
+                                    self.conv_lora_dim is not None or conv_block_dims is not None):
                                     skipped.append(lora_name)
                                 continue
 
@@ -910,7 +925,8 @@ class LoRANetwork(torch.nn.Module):
                 index = None
                 logger.info(f"create LoRA for Text Encoder:")
 
-            text_encoder_loras, skipped = create_modules(False, index, text_encoder, LoRANetwork.TEXT_ENCODER_TARGET_REPLACE_MODULE)
+            text_encoder_loras, skipped = create_modules(False, index, text_encoder,
+                                                         LoRANetwork.TEXT_ENCODER_TARGET_REPLACE_MODULE)
             self.text_encoder_loras.extend(text_encoder_loras)
             skipped_te += skipped
         logger.info(f"create LoRA for Text Encoder: {len(self.text_encoder_loras)} modules.")
@@ -1009,7 +1025,7 @@ class LoRANetwork(torch.nn.Module):
             sd_for_lora = {}
             for key in weights_sd.keys():
                 if key.startswith(lora.lora_name):
-                    sd_for_lora[key[len(lora.lora_name) + 1 :]] = weights_sd[key]
+                    sd_for_lora[key[len(lora.lora_name) + 1:]] = weights_sd[key]
             lora.merge_to(sd_for_lora, dtype, device)
 
         logger.info(f"weights are merged")
@@ -1151,7 +1167,8 @@ class LoRANetwork(torch.nn.Module):
         mask = self.mask
         mask_dic = {}
         mask = mask.unsqueeze(0).unsqueeze(1)  # b(1),c(1),h,w
-        ref_weight = self.text_encoder_loras[0].lora_down.weight if self.text_encoder_loras else self.unet_loras[0].lora_down.weight
+        ref_weight = self.text_encoder_loras[0].lora_down.weight if self.text_encoder_loras else self.unet_loras[
+            0].lora_down.weight
         dtype = ref_weight.dtype
         device = ref_weight.device
 
@@ -1258,7 +1275,7 @@ class LoRANetwork(torch.nn.Module):
             norm = norms[i].clamp(min=max_norm_value / 2)
             desired = torch.clamp(norm, max=max_norm_value)
             ratio = desired.cpu() / norm.cpu()
-            sqrt_ratio = ratio**0.5
+            sqrt_ratio = ratio ** 0.5
             if ratio != 1:
                 keys_scaled += 1
                 state_dict[upkeys[i]] *= sqrt_ratio
