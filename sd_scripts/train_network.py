@@ -432,8 +432,6 @@ class NetworkTrainer:
         network.apply_to(text_encoder, unet, train_text_encoder, train_unet)
 
         if args.network_weights is not None:
-            ## Initialize all weights
-            network.reinitialize_weights()
             info = network.load_weights(args.network_weights)
             accelerator.print(f"load network weights from {args.network_weights}: {info}")
 

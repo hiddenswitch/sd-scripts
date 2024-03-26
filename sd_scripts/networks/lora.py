@@ -81,12 +81,6 @@ class LoRAModule(torch.nn.Module):
         self.rank_dropout = rank_dropout
         self.module_dropout = module_dropout
 
-    def reinitialize_weights(self):
-        for module in self.modules():
-            if isinstance(module, LoRAModule):
-                torch.nn.init.kaiming_uniform_(module.lora_down.weight, a=math.sqrt(5))
-                torch.nn.init.zeros_(module.lora_up.weight)
-                
     def apply_to(self):
         self.org_forward = self.org_module.forward
         self.org_module.forward = self.forward
@@ -979,6 +973,28 @@ class LoRANetwork(torch.nn.Module):
             weights_sd = load_file(file)
         else:
             weights_sd = torch.load(file, map_location="cpu")
+
+        for module in self.modules():
+            if isinstance(module, (LoRAModule, LoRAInfModule)):
+                lora_name = module.lora_name
+                # Check if both 'lora_down', 'lora_up' weights, and 'alpha' are in the state dictionary
+                down_key = f"{lora_name}.lora_down.weight"
+                up_key = f"{lora_name}.lora_up.weight"
+                alpha_key = f"{lora_name}.alpha"
+                if down_key not in weights_sd or up_key not in weights_sd or alpha_key not in weights_sd:
+                    # Initialize missing weights based on the configuration of the module
+                    in_features = module.lora_down.in_features if hasattr(module.lora_down,
+                                                                          'in_features') else module.lora_down.in_channels
+                    out_features = module.lora_up.out_features if hasattr(module.lora_up,
+                                                                          'out_features') else module.lora_up.out_channels
+                    if down_key not in weights_sd:
+                        weights_sd[down_key] = torch.nn.init.kaiming_uniform_(torch.empty(module.lora_dim, in_features))
+                    if up_key not in weights_sd:
+                        weights_sd[up_key] = torch.zeros(out_features, module.lora_dim)
+                    if alpha_key not in weights_sd:
+                        # Initialize alpha if not present. Here we mimic the logic used in LoRAModule's __init__
+                        alpha_value = module.lora_dim  # or any other logic you want to use for initialization
+                        weights_sd[alpha_key] = torch.tensor(alpha_value)
 
         info = self.load_state_dict(weights_sd, False)
         return info
