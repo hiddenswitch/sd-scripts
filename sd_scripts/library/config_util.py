@@ -41,17 +41,12 @@ from .train_util import (
     DatasetGroup,
 )
 from .utils import setup_logging
-
 setup_logging()
 import logging
-
 logger = logging.getLogger(__name__)
 
-
 def add_config_arguments(parser: argparse.ArgumentParser):
-    parser.add_argument(
-        "--dataset_config", type=Path, default=None, help="config file for detail settings / 詳細な設定用の設定ファイル"
-    )
+    parser.add_argument("--dataset_config", type=Path, default=None, help="config file for detail settings / 詳細な設定用の設定ファイル")
 
 
 # TODO: inherit Params class in Subset, Dataset
@@ -65,8 +60,6 @@ class BaseSubsetParams:
     caption_separator: str = (",",)
     keep_tokens: int = 0
     keep_tokens_separator: str = (None,)
-    secondary_separator: Optional[str] = None
-    enable_wildcard: bool = False
     color_aug: bool = False
     flip_aug: bool = False
     face_crop_aug_range: Optional[Tuple[float, float]] = None
@@ -190,8 +183,6 @@ class ConfigSanitizer:
         "shuffle_caption": bool,
         "keep_tokens": int,
         "keep_tokens_separator": str,
-        "secondary_separator": str,
-        "enable_wildcard": bool,
         "token_warmup_min": int,
         "token_warmup_step": Any(float, int),
         "caption_prefix": str,
@@ -328,10 +319,7 @@ class ConfigSanitizer:
 
             self.dataset_schema = validate_flex_dataset
         elif support_dreambooth:
-            if support_controlnet:
-                self.dataset_schema = self.cn_dataset_schema
-            else:
-                self.dataset_schema = self.db_dataset_schema
+            self.dataset_schema = self.db_dataset_schema
         elif support_finetuning:
             self.dataset_schema = self.ft_dataset_schema
         elif support_controlnet:
@@ -376,9 +364,7 @@ class ConfigSanitizer:
             return self.argparse_config_validator(argparse_namespace)
         except MultipleInvalid:
             # XXX: this should be a bug
-            logger.error(
-                "Invalid cmdline parsed arguments. This should be a bug. / コマンドラインのパース結果が正しくないようです。プログラムのバグの可能性が高いです。"
-            )
+            logger.error("Invalid cmdline parsed arguments. This should be a bug. / コマンドラインのパース結果が正しくないようです。プログラムのバグの可能性が高いです。")
             raise
 
     # NOTE: value would be overwritten by latter dict if there is already the same key
@@ -530,9 +516,7 @@ def generate_dataset_group_by_blueprint(dataset_group_blueprint: DatasetGroupBlu
                 info += "\n"
 
             for j, subset in enumerate(dataset.subsets):
-                info += indent(
-                    dedent(
-                        f"""\
+                info += indent(dedent(f"""\
             [Subset {j} of Dataset {i}]
               image_dir: "{subset.image_dir}"
               image_count: {subset.img_count}
@@ -540,8 +524,6 @@ def generate_dataset_group_by_blueprint(dataset_group_blueprint: DatasetGroupBlu
               shuffle_caption: {subset.shuffle_caption}
               keep_tokens: {subset.keep_tokens}
               keep_tokens_separator: {subset.keep_tokens_separator}
-              secondary_separator: {subset.secondary_separator}
-              enable_wildcard: {subset.enable_wildcard}
               caption_dropout_rate: {subset.caption_dropout_rate}
               caption_dropout_every_n_epoches: {subset.caption_dropout_every_n_epochs}
               caption_tag_dropout_rate: {subset.caption_tag_dropout_rate}
@@ -553,10 +535,7 @@ def generate_dataset_group_by_blueprint(dataset_group_blueprint: DatasetGroupBlu
               random_crop: {subset.random_crop}
               token_warmup_min: {subset.token_warmup_min},
               token_warmup_step: {subset.token_warmup_step},
-                """
-                    ),
-                    "  ",
-                )
+                """), "    ")
 
                 if is_dreambooth:
                     info += indent(dedent(f"""\
@@ -672,17 +651,13 @@ def load_user_config(file: str) -> dict:
             with open(file, "r") as f:
                 config = json.load(f)
         except Exception:
-            logger.error(
-                f"Error on parsing JSON config file. Please check the format. / JSON 形式の設定ファイルの読み込みに失敗しました。文法が正しいか確認してください。: {file}"
-            )
+            logger.error(f"Error on parsing JSON config file. Please check the format. / JSON 形式の設定ファイルの読み込みに失敗しました。文法が正しいか確認してください。: {file}")
             raise
     elif file.name.lower().endswith(".toml"):
         try:
             config = toml.load(file)
         except Exception:
-            logger.error(
-                f"Error on parsing TOML config file. Please check the format. / TOML 形式の設定ファイルの読み込みに失敗しました。文法が正しいか確認してください。: {file}"
-            )
+            logger.error(f"Error on parsing TOML config file. Please check the format. / TOML 形式の設定ファイルの読み込みに失敗しました。文法が正しいか確認してください。: {file}")
             raise
     else:
         raise ValueError(f"not supported config file format / 対応していない設定ファイルの形式です: {file}")
@@ -709,13 +684,13 @@ if __name__ == "__main__":
     train_util.prepare_dataset_args(argparse_namespace, config_args.support_finetuning)
 
     logger.info("[argparse_namespace]")
-    logger.info(f"{vars(argparse_namespace)}")
+    logger.info(f'{vars(argparse_namespace)}')
 
     user_config = load_user_config(config_args.dataset_config)
 
     logger.info("")
     logger.info("[user_config]")
-    logger.info(f"{user_config}")
+    logger.info(f'{user_config}')
 
     sanitizer = ConfigSanitizer(
         config_args.support_dreambooth, config_args.support_finetuning, config_args.support_controlnet,
@@ -725,10 +700,10 @@ if __name__ == "__main__":
 
     logger.info("")
     logger.info("[sanitized_user_config]")
-    logger.info(f"{sanitized_user_config}")
+    logger.info(f'{sanitized_user_config}')
 
     blueprint = BlueprintGenerator(sanitizer).generate(user_config, argparse_namespace)
 
     logger.info("")
     logger.info("[blueprint]")
-    logger.info(f"{blueprint}")
+    logger.info(f'{blueprint}')
