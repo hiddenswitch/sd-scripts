@@ -29,6 +29,6 @@ scipy
 # this is for onnx:
 # protobuf
 # open clip for SDXL
-open-clip-torch==2.20.0
+open-clip-torch==2.24.0
 # For logging
 rich==13.7.0
