@@ -1054,7 +1054,7 @@ def setup_parser() -> argparse.ArgumentParser:
 
     parser.add_argument("--unet_lr", type=float, default=None, help="learning rate for U-Net / U-Netの学習率")
     parser.add_argument("--text_encoder_lr", type=float, default=None, help="learning rate for Text Encoder / Text Encoderの学習率")
-    parser.add_argument("--stop_on_loss", type=float, default=None, help="when we should stop trainig")
+    parser.add_argument("--stop_on_loss", type=float, default=None, help="when we should stop training")
     parser.add_argument("--stop_on_loss_steps", type=int, default=1000, help="When we start to trigger logic, min steps required")
     parser.add_argument("--stop_on_loss_epochs", type=int, default=3, help="How many last epochs we use for detect loss to stop")
     parser.add_argument("--stop_on_loss_window", type=int, default=3, help="How many epochs we use for detect moving average for checking loss we compare")
