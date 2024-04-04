@@ -896,9 +896,10 @@ class NetworkTrainer:
                         pred = stage_c(
                             noised, noise_cond, clip_text=encoder_hidden_states, clip_text_pooled=pool, clip_img=zero_img_emb
                         )
-                        loss = torch.nn.functional.mse_loss(pred, target, reduction="none").mean(dim=[1, 2, 3])
+                        loss = torch.nn.functional.mse_loss(pred.float(), target.float(), reduction="none")
                         if args.masked_loss:
                             loss = apply_masked_loss(loss, batch)
+                        loss = loss.mean(dim=[1, 2, 3])
                         loss_adjusted = (loss * loss_weight).mean()
 
                     if args.adaptive_loss_weight:
