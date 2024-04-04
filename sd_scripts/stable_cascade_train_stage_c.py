@@ -35,6 +35,8 @@ from .library.config_util import (
     BlueprintGenerator,
 )
 
+from .library.custom_train_functions import apply_masked_loss
+
 
 def train(args):
     train_util.verify_training_args(args)
@@ -57,7 +59,7 @@ def train(args):
 
     # データセットを準備する
     if args.dataset_class is None:
-        blueprint_generator = BlueprintGenerator(ConfigSanitizer(True, True, False, True))
+        blueprint_generator = BlueprintGenerator(ConfigSanitizer(True, True, args.masked_loss, True))
         if args.dataset_config is not None:
             logger.info(f"Load dataset config from {args.dataset_config}")
             user_config = config_util.load_user_config(args.dataset_config)
@@ -427,6 +429,8 @@ def train(args):
                         noised, noise_cond, clip_text=encoder_hidden_states, clip_text_pooled=pool, clip_img=zero_img_emb
                     )
                     loss = torch.nn.functional.mse_loss(pred, target, reduction="none").mean(dim=[1, 2, 3])
+                    if args.masked_loss:
+                        loss = apply_masked_loss(loss, batch)
                     loss_adjusted = (loss * loss_weight).mean()
 
                 if args.adaptive_loss_weight:
@@ -534,6 +538,7 @@ def setup_parser() -> argparse.ArgumentParser:
     train_util.add_tokenizer_arguments(parser)
     train_util.add_dataset_arguments(parser, True, True, True)
     train_util.add_training_arguments(parser, False)
+    train_util.add_masked_loss_arguments(parser)
     train_util.add_sd_saving_arguments(parser)
     train_util.add_optimizer_arguments(parser)
     config_util.add_config_arguments(parser)
