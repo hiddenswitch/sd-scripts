@@ -155,7 +155,7 @@ class NetworkTrainer:
                     latents = torch.where(torch.isnan(latents), torch.zeros_like(latents), latents)
             latents = latents * self.vae_scale_factor
 
-            # get multiplier for each sample
+        # get multiplier for each sample
         if network_has_multiplier:
             multipliers = batch["network_multipliers"]
             # if all multipliers are same, use single multiplier
@@ -182,8 +182,8 @@ class NetworkTrainer:
                     args, accelerator, batch, tokenizers, text_encoders, weight_dtype
                 )
 
-            # Sample noise, sample a random timestep for each image, and add noise to the latents,
-            # with noise offset and/or multires noise if specified
+        # Sample noise, sample a random timestep for each image, and add noise to the latents,
+        # with noise offset and/or multires noise if specified
         noise, noisy_latents, timesteps = train_util.get_noise_noisy_latents_and_timesteps(
             args, noise_scheduler, latents
         )
@@ -219,11 +219,11 @@ class NetworkTrainer:
             loss = apply_masked_loss(loss, batch)
         loss = loss.mean([1, 2, 3])
 
-        loss_weights = batch["loss_weights"]  # 各sampleごとのweight
+        loss_weights = batch["loss_weights"].to(accelerator.device)  # 各sampleごとのweight
         loss = loss * loss_weights
 
         if args.min_snr_gamma:
-            loss = apply_snr_weight(loss, timesteps, noise_scheduler, args.min_snr_gamma, args.v_parameterization)
+            loss = apply_snr_weight(loss, timesteps, noise_scheduler, args.min_snr_gamma)
         if args.scale_v_pred_loss_like_noise_pred:
             loss = scale_v_prediction_loss_like_noise_prediction(loss, timesteps, noise_scheduler)
         if args.v_pred_like_loss:
@@ -450,8 +450,8 @@ class NetworkTrainer:
         optimizer_name, optimizer_args, optimizer = train_util.get_optimizer(args, trainable_params)
 
         # dataloaderを準備する
-        # DataLoaderのプロセス数：0 は persistent_workers が使えないので注意
-        n_workers = min(args.max_data_loader_n_workers, os.cpu_count())  # cpu_count or max_data_loader_n_workers
+        # DataLoaderのプロセス数：0はメインプロセスになる
+        n_workers = min(args.max_data_loader_n_workers, os.cpu_count() - 1)  # cpu_count-1 ただし最大で指定された数まで
 
         train_dataloader = torch.utils.data.DataLoader(
             train_dataset_group,
@@ -673,11 +673,6 @@ class NetworkTrainer:
                         "random_crop": bool(subset.random_crop),
                         "shuffle_caption": bool(subset.shuffle_caption),
                         "keep_tokens": subset.keep_tokens,
-                        "keep_tokens_separator": subset.keep_tokens_separator,
-                        "secondary_separator": subset.secondary_separator,
-                        "enable_wildcard": bool(subset.enable_wildcard),
-                        "caption_prefix": subset.caption_prefix,
-                        "caption_suffix": subset.caption_suffix,
                     }
 
                     image_dir_or_metadata_file = None
@@ -1059,7 +1054,7 @@ def setup_parser() -> argparse.ArgumentParser:
 
     parser.add_argument("--unet_lr", type=float, default=None, help="learning rate for U-Net / U-Netの学習率")
     parser.add_argument("--text_encoder_lr", type=float, default=None, help="learning rate for Text Encoder / Text Encoderの学習率")
-    parser.add_argument("--stop_on_loss", type=float, default=None, help="when we should stop trainig")
+    parser.add_argument("--stop_on_loss", type=float, default=None, help="when we should stop training")
     parser.add_argument("--stop_on_loss_steps", type=int, default=1000, help="When we start to trigger logic, min steps required")
     parser.add_argument("--stop_on_loss_epochs", type=int, default=3, help="How many last epochs we use for detect loss to stop")
     parser.add_argument("--stop_on_loss_window", type=int, default=3, help="How many epochs we use for detect moving average for checking loss we compare")

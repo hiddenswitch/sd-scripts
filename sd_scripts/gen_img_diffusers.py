@@ -3362,7 +3362,7 @@ def setup_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--network_mul", type=float, default=None, nargs="*", help="additional network multiplier / 追加ネットワークの効果の倍率")
     parser.add_argument(
-        "--network_args", type=str, default=None, nargs="*", help="additional argmuments for network (key=value) / ネットワークへの追加の引数"
+        "--network_args", type=str, default=None, nargs="*", help="additional arguments for network (key=value) / ネットワークへの追加の引数"
     )
     parser.add_argument("--network_show_meta", action="store_true", help="show metadata of network model / ネットワークモデルのメタデータを表示する")
     parser.add_argument("--network_merge", action="store_true", help="merge network weights to original model / ネットワークの重みをマージする")
@@ -3388,7 +3388,7 @@ def setup_parser() -> argparse.ArgumentParser:
         "--max_embeddings_multiples",
         type=int,
         default=None,
-        help="max embeding multiples, max token length is 75 * multiples / トークン長をデフォルトの何倍とするか 75*この値 がトークン長となる",
+        help="max embedding multiples, max token length is 75 * multiples / トークン長をデフォルトの何倍とするか 75*この値 がトークン長となる",
     )
     parser.add_argument(
         "--clip_guidance_scale",
@@ -3447,7 +3447,7 @@ def setup_parser() -> argparse.ArgumentParser:
         "--highres_fix_upscaler_args",
         type=str,
         default=None,
-        help="additional argmuments for upscaler (key=value) / upscalerへの追加の引数",
+        help="additional arguments for upscaler (key=value) / upscalerへの追加の引数",
     )
     parser.add_argument(
         "--highres_fix_disable_control_net",
@@ -3979,10 +3979,10 @@ class PipelineLike:
 
     def set_gradual_latent(self, gradual_latent):
         if gradual_latent is None:
-            logger.info("gradual_latent is disabled")
+            print("gradual_latent is disabled")
             self.gradual_latent = None
         else:
-            logger.info(f"gradual_latent is enabled: {gradual_latent}")
+            print(f"gradual_latent is enabled: {gradual_latent}")
             self.gradual_latent = gradual_latent  # (ds_ratio, start_timesteps, every_n_steps, ratio_step)
 
     # region xformersとか使う部分：独自に書き換えるので関係なし
@@ -4461,8 +4461,8 @@ class PipelineLike:
         enable_gradual_latent = False
         if self.gradual_latent:
             if not hasattr(self.scheduler, "set_gradual_latent_params"):
-                logger.info("gradual_latent is not supported for this scheduler. Ignoring.")
-                logger.info(f'{self.scheduler.__class__.__name__}')
+                print("gradual_latent is not supported for this scheduler. Ignoring.")
+                print(self.scheduler.__class__.__name__)
             else:
                 enable_gradual_latent = True
                 step_elapsed = 1000
@@ -6804,42 +6804,42 @@ def main(args):
                             m = re.match(r"glt ([\d\.]+)", parg, re.IGNORECASE)
                             if m:  # gradual latent timesteps
                                 gl_timesteps = int(m.group(1))
-                                logger.info(f"gradual latent timesteps: {gl_timesteps}")
+                                print(f"gradual latent timesteps: {gl_timesteps}")
                                 continue
 
                             m = re.match(r"glr ([\d\.]+)", parg, re.IGNORECASE)
                             if m:  # gradual latent ratio
                                 gl_ratio = float(m.group(1))
                                 gl_timesteps = gl_timesteps if gl_timesteps is not None else -1  # -1 means override
-                                logger.info(f"gradual latent ratio: {ds_ratio}")
+                                print(f"gradual latent ratio: {ds_ratio}")
                                 continue
 
                             m = re.match(r"gle ([\d\.]+)", parg, re.IGNORECASE)
                             if m:  # gradual latent every n steps
                                 gl_every_n_steps = int(m.group(1))
                                 gl_timesteps = gl_timesteps if gl_timesteps is not None else -1  # -1 means override
-                                logger.info(f"gradual latent every n steps: {gl_every_n_steps}")
+                                print(f"gradual latent every n steps: {gl_every_n_steps}")
                                 continue
 
                             m = re.match(r"gls ([\d\.]+)", parg, re.IGNORECASE)
                             if m:  # gradual latent ratio step
                                 gl_ratio_step = float(m.group(1))
                                 gl_timesteps = gl_timesteps if gl_timesteps is not None else -1  # -1 means override
-                                logger.info(f"gradual latent ratio step: {gl_ratio_step}")
+                                print(f"gradual latent ratio step: {gl_ratio_step}")
                                 continue
 
                             m = re.match(r"glsn ([\d\.]+)", parg, re.IGNORECASE)
                             if m:  # gradual latent s noise
                                 gl_s_noise = float(m.group(1))
                                 gl_timesteps = gl_timesteps if gl_timesteps is not None else -1  # -1 means override
-                                logger.info(f"gradual latent s noise: {gl_s_noise}")
+                                print(f"gradual latent s noise: {gl_s_noise}")
                                 continue
 
                             m = re.match(r"glus ([\d\.\-,]+)", parg, re.IGNORECASE)
                             if m:  # gradual latent unsharp params
                                 gl_unsharp_params = m.group(1)
                                 gl_timesteps = gl_timesteps if gl_timesteps is not None else -1  # -1 means override
-                                logger.info(f"gradual latent unsharp params: {gl_unsharp_params}")
+                                print(f"gradual latent unsharp params: {gl_unsharp_params}")
                                 continue
 
                         except ValueError as ex:
@@ -6859,7 +6859,7 @@ def main(args):
                     if gl_unsharp_params is not None:
                         unsharp_params = gl_unsharp_params.split(",")
                         us_ksize, us_sigma, us_strength = [float(v) for v in unsharp_params[:3]]
-                        logger.info(f'{unsharp_params}')
+                        print(unsharp_params)
                         us_target_x = True if len(unsharp_params) < 4 else bool(int(unsharp_params[3]))
                         us_ksize = int(us_ksize)
                     else:
