@@ -3,7 +3,7 @@ transformers==4.36.2
 diffusers[torch]
 ftfy
 # albumentations
-opencv-python
+opencv-python-headless>=4.9.0.80
 einops
 pytorch-lightning
 # bitsandbytes
