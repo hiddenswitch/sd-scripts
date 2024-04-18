@@ -5,8 +5,8 @@ import torch
 from transformers import CLIPTextModel, CLIPTokenizer
 from diffusers import UNet2DConditionModel, SchedulerMixin
 from diffusers.image_processor import VaeImageProcessor
-from model_util import SDXL_TEXT_ENCODER_TYPE
-from diffusers.utils import randn_tensor
+from .model_util import SDXL_TEXT_ENCODER_TYPE
+from diffusers.utils.torch_utils import randn_tensor
 
 from tqdm import tqdm
 

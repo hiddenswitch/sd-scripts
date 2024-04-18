@@ -29,7 +29,7 @@ from .config_util import RootConfig
 import wandb
 
 NUM_IMAGES_PER_PROMPT = 1
-from lora import LoRANetwork, DEFAULT_TARGET_REPLACE, UNET_TARGET_REPLACE_MODULE_CONV
+from .lora import LoRANetwork, DEFAULT_TARGET_REPLACE, UNET_TARGET_REPLACE_MODULE_CONV
 
 
 def flush():
