@@ -17,7 +17,7 @@ import torch
 from .library.device_utils import init_ipex, clean_memory_on_device
 init_ipex()
 
-
+import numpy as np
 from accelerate.utils import set_seed
 from diffusers import DDPMScheduler
 
@@ -52,9 +52,9 @@ class NetworkTrainer:
 
     # TODO 他のスクリプトと共通化する
     def generate_step_logs(
-        self, args: argparse.Namespace, current_loss, avr_loss, lr_scheduler, keys_scaled=None, mean_norm=None, maximum_norm=None
+        self, args: argparse.Namespace, current_loss, avr_loss, lr_scheduler, keys_scaled=None, mean_norm=None, maximum_norm=None, extra={}
     ):
-        logs = {"loss/current": current_loss, "loss/average": avr_loss}
+        logs = {"loss/current": current_loss, "loss/average": avr_loss, **extra}
 
         if keys_scaled is not None:
             logs["max_norm/keys_scaled"] = keys_scaled
@@ -844,6 +844,7 @@ class NetworkTrainer:
             accelerator.unwrap_model(network).on_epoch_start(text_encoder, stage_c)
 
             for step, batch in enumerate(train_dataloader):
+                step_logs = {}
                 current_step.value = global_step
                 with accelerator.accumulate(network):
                     on_step_start(text_encoder, stage_c)
@@ -897,10 +898,28 @@ class NetworkTrainer:
                             noised, noise_cond, clip_text=encoder_hidden_states, clip_text_pooled=pool, clip_img=zero_img_emb
                         )
                         loss = torch.nn.functional.mse_loss(pred.float(), target.float(), reduction="none")
-                        if args.masked_loss:
-                            loss = apply_masked_loss(loss, batch)
+
+                        if args.masked_loss and np.random.rand() < args.masked_loss_prob:
+                            loss, noise_mask = apply_masked_loss(loss, batch)
+                        else:
+                            noise_mask = torch.ones_like(noise, device=noise.device)
+
                         loss = loss.mean(dim=[1, 2, 3])
-                        loss_adjusted = (loss * loss_weight).mean()
+                        loss_adjusted = (loss * loss_weight)
+
+                        pred_std, pred_skews, pred_kurtoses = train_util.noise_stats(pred * noise_mask)
+                        true_std, true_skews, true_kurtoses = train_util.noise_stats(noise * noise_mask)
+
+                        if args.std_loss_weight is not None:
+                            std_loss = torch.nn.functional.mse_loss(pred_std, true_std, reduction="none")
+                            loss = loss + std_loss * args.std_loss_weight
+
+                        step_logs["metrics/noise_pred_std"] = pred_std.mean().item()
+                        step_logs["metrics/noise_pred_mean"] = pred.mean()
+                        step_logs["metrics/std_divergence"] = true_std.mean().item()      - pred_std.mean().item()
+                        step_logs["metrics/skew_divergence"] = true_skews.mean().item()    - pred_skews.mean().item()
+                        step_logs["metrics/kurtosis_divergence"] = true_kurtoses.mean().item() - pred_kurtoses.mean().item()
+                        loss_adjusted = loss_adjusted.mean()
 
                     if args.adaptive_loss_weight:
                         gdf.loss_weight.update_buckets(logSNR, loss)  # use loss instead of loss_adjusted
@@ -956,33 +975,34 @@ class NetworkTrainer:
                     progress_bar.set_postfix(**{**max_mean_logs, **logs})
 
                 if args.logging_dir is not None:
-                    logs = self.generate_step_logs(args, current_loss, avr_loss, lr_scheduler, keys_scaled, mean_norm, maximum_norm)
+                    logs = self.generate_step_logs(args, current_loss, avr_loss, lr_scheduler, keys_scaled, mean_norm, maximum_norm, step_logs)
                     accelerator.log(logs, step=global_step)
 
                 if global_step >= args.max_train_steps:
                     break
 
             if len(val_dataloader) > 0:
-                print("Validating バリデーション処理...")
+                print("Currently does not support validation set")
+                sys.exit("Error: Please set validation set to 0")
 
-            with torch.no_grad():
-                for val_step, batch in enumerate(val_dataloader):
-                    is_train = False
-                    loss = self.process_batch(batch, is_train, train_unet, network, network_has_multiplier, tokenizers, text_encoders, unet, vae, noise_scheduler, vae_dtype, weight_dtype, accelerator, args)
-
-                    current_loss = loss.detach().item()
-                    val_loss_recorder.add(epoch=epoch, step=val_step, loss=current_loss)
-
-                    if args.logging_dir is not None:
-                        avr_loss: float = val_loss_recorder.moving_average
-                        logs = {"loss/validation_current": current_loss}
-                        accelerator.log(logs, step=(len(val_dataloader) * epoch) + 1 + val_step)
-
-                if len(val_dataloader) > 0:
-                    if args.logging_dir is not None:
-                        avr_loss: float = val_loss_recorder.moving_average
-                        logs = {"loss/validation_average": avr_loss}
-                        accelerator.log(logs, step=epoch + 1)
+            # with torch.no_grad():
+            #     for val_step, batch in enumerate(val_dataloader):
+            #         is_train = False
+            #         loss = self.process_batch(batch, is_train, train_unet, network, network_has_multiplier, tokenizers, text_encoders, unet, vae, noise_scheduler, vae_dtype, weight_dtype, accelerator, args)
+            #
+            #         current_loss = loss.detach().item()
+            #         val_loss_recorder.add(epoch=epoch, step=val_step, loss=current_loss)
+            #
+            #         if args.logging_dir is not None:
+            #             avr_loss: float = val_loss_recorder.moving_average
+            #             logs = {"loss/validation_current": current_loss}
+            #             accelerator.log(logs, step=(len(val_dataloader) * epoch) + 1 + val_step)
+            #
+            #     if len(val_dataloader) > 0:
+            #         if args.logging_dir is not None:
+            #             avr_loss: float = val_loss_recorder.moving_average
+            #             logs = {"loss/validation_average": avr_loss}
+            #             accelerator.log(logs, step=epoch + 1)
 
             if args.logging_dir is not None:
                 logs = {"loss/epoch": loss_recorder.moving_average}

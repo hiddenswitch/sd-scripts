@@ -3314,6 +3314,19 @@ def add_training_arguments(parser: argparse.ArgumentParser, support_dreambooth: 
         help="tags for model metadata, separated by comma / メタデータに書き込まれるモデルタグ、カンマ区切り",
     )
 
+    parser.add_argument(
+        "--std_loss_weight",
+        type=float,
+        default=None,
+        help="Weight for standard deviation loss. Encourages the model to learn noise with a stddev like the true noise. May prevent 'deep fry'. 1.0 is a good starting place.",
+    )
+    parser.add_argument(
+        "--masked_loss_prob",
+        type=float,
+        default=1.0,
+        help="probability of masking loss (default is None) / masked lossの確率（デフォルトはNone）",
+    )
+
     if support_dreambooth:
         # DreamBooth training
         parser.add_argument(
@@ -4877,13 +4890,13 @@ def get_my_scheduler(
     elif sample_sampler == "dpmsolver" or sample_sampler == "dpmsolver++":
         scheduler_cls = DPMSolverMultistepScheduler
         sched_init_args["algorithm_type"] = sample_sampler
-        if args.sample_sampler == 'k-sde-dpmsolver++' or args.sample_sampler == 'k-dpmsolver++':
-            sched_init_args["algorithm_type"] = args.sample_sampler[2:]
+        if sample_sampler == 'k-sde-dpmsolver++' or sample_sampler == 'k-dpmsolver++':
+            sched_init_args["algorithm_type"] = sample_sampler[2:]
             sched_init_args["use_karras_sigmas"] = True
-        if args.sample_sampler == 'lu-sde-dpmsolver++':
-            sched_init_args["algorithm_type"] = args.sample_sampler[3:]
+        if sample_sampler == 'lu-sde-dpmsolver++':
+            sched_init_args["algorithm_type"] = sample_sampler[3:]
             sched_init_args["use_lu_lambdas"] = True
-        if args.sample_sampler == 'k-sde-dpmsolver++' or args.sample_sampler == 'sde-dpmsolver++' or args.sample_sampler == 'lu-sde-dpmsolver++':
+        if sample_sampler == 'k-sde-dpmsolver++' or sample_sampler == 'sde-dpmsolver++' or sample_sampler == 'lu-sde-dpmsolver++':
             sched_init_args["euler_at_final"] = True
         scheduler_module = diffusers.schedulers.scheduling_dpmsolver_multistep
     elif sample_sampler == "dpmsingle":
@@ -5279,3 +5292,36 @@ class LossRecorder:
     @property
     def moving_average(self) -> float:
         return self.loss_total / len(self.loss_list)
+
+def noise_stats(noise):
+    diff = noise - noise.mean(dim=(1,2,3), keepdim=True)
+    std = noise.std(dim=(1,2,3))
+    zscores = diff / std[:, None, None, None]
+    skews = (zscores**3).mean(dim=(1,2,3))
+    kurtoses = (zscores**4).mean(dim=(1,2,3)) - 3.0
+    return std, skews, kurtoses
+
+def stat_losses(noise, noise_pred, std_loss_weight=0.5, kl_loss_weight=3e-3, skew_loss_weight=0, kurtosis_loss_weight=0):
+    std_loss = torch.nn.functional.mse_loss(
+        noise_pred.std(dim=(1,2,3)),
+        noise.std(dim=(1,2,3)),
+        reduction="none") * std_loss_weight
+
+    skew_pred, kurt_pred = noise_stats(noise_pred)
+    skew_true, kurt_true = noise_stats(noise)
+
+    skew_loss = torch.nn.functional.mse_loss(skew_pred, skew_true, reduction="none") * skew_loss_weight
+    kurt_loss = torch.nn.functional.mse_loss(kurt_pred, kurt_true, reduction="none") * kurtosis_loss_weight
+
+    p1s = []
+    p2s = []
+    for i, v in enumerate(noise_pred):
+        n = noise[i]
+        p1s.append(torch.histc(v.float(), bins=500, min=n.min(), max=n.max()) + 1e-6)
+        p2s.append(torch.histc(n.float(), bins=500) + 1e-6)
+    p1 = torch.stack(p1s)
+    p2 = torch.stack(p2s)
+
+    kl_loss = torch.nn.functional.kl_div(p1.log(), p2, reduction="none").mean(dim=1) * kl_loss_weight
+
+    return std_loss, skew_loss, kurt_loss, kl_loss

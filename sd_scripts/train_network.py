@@ -24,7 +24,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from accelerate.utils import set_seed
 from diffusers import DDPMScheduler
 from .library import model_util
-
+import numpy as np
 from .library import train_util
 from .library.train_util import (
     DreamBoothDataset,
@@ -60,9 +60,9 @@ class NetworkTrainer:
 
     # TODO 他のスクリプトと共通化する
     def generate_step_logs(
-        self, args: argparse.Namespace, current_loss, avr_loss, lr_scheduler, keys_scaled=None, mean_norm=None, maximum_norm=None
+        self, args: argparse.Namespace, current_loss, avr_loss, lr_scheduler, keys_scaled=None, mean_norm=None, maximum_norm=None, extra={}
     ):
-        logs = {"loss/current": current_loss, "loss/average": avr_loss}
+        logs = {"loss/current": current_loss, "loss/average": avr_loss, **extra}
 
         if keys_scaled is not None:
             logs["max_norm/keys_scaled"] = keys_scaled
@@ -141,7 +141,7 @@ class NetworkTrainer:
     def sample_images(self, accelerator, args, epoch, global_step, device, vae, tokenizer, text_encoder, unet):
         train_util.sample_images(accelerator, args, epoch, global_step, device, vae, tokenizer, text_encoder, unet)
 
-    def process_batch(self, batch, is_train, train_unet, network, network_has_multiplier, tokenizers, text_encoders, unet, vae, noise_scheduler, vae_dtype, weight_dtype, accelerator, args, train_text_encoder=True):
+    def process_batch(self, batch, is_train, train_unet, network, network_has_multiplier, tokenizers, text_encoders, unet, vae, noise_scheduler, vae_dtype, weight_dtype, accelerator, args, step_logs, train_text_encoder=True):
         with torch.no_grad():
             if "latents" in batch and batch["latents"] is not None:
                 latents = batch["latents"].to(accelerator.device)
@@ -215,8 +215,10 @@ class NetworkTrainer:
             target = noise
 
         loss = torch.nn.functional.mse_loss(noise_pred.float(), target.float(), reduction="none")
-        if args.masked_loss:
-            loss = apply_masked_loss(loss, batch)
+        if args.masked_loss and np.random.rand() < args.masked_loss_prob:
+            loss, noise_mask = apply_masked_loss(loss, batch)
+        else:
+            noise_mask = torch.ones_like(noise, device=noise.device)
         loss = loss.mean([1, 2, 3])
 
         loss_weights = batch["loss_weights"].to(accelerator.device)  # 各sampleごとのweight
@@ -231,8 +233,19 @@ class NetworkTrainer:
         if args.debiased_estimation_loss:
             loss = apply_debiased_estimation(loss, timesteps, noise_scheduler)
 
-        loss = loss.mean()  # 平均なのでbatch_sizeで割る必要なし
+        pred_std, pred_skews, pred_kurtoses = train_util.noise_stats(noise_pred * noise_mask)
+        true_std, true_skews, true_kurtoses = train_util.noise_stats(noise * noise_mask)
 
+        if args.std_loss_weight is not None:
+            std_loss = torch.nn.functional.mse_loss(pred_std, true_std, reduction="none")
+            loss = loss + std_loss * args.std_loss_weight
+
+        step_logs["metrics/noise_pred_std"]      = pred_std.mean().item()
+        step_logs["metrics/noise_pred_mean"]     = noise_pred.mean()
+        step_logs["metrics/std_divergence"]      = true_std.mean().item()      - pred_std.mean().item()
+        step_logs["metrics/skew_divergence"]     = true_skews.mean().item()    - pred_skews.mean().item()
+        step_logs["metrics/kurtosis_divergence"] = true_kurtoses.mean().item() - pred_kurtoses.mean().item()
+        loss = loss.mean()  # 平均なのでbatch_sizeで割る必要なし
         return loss
 
 
@@ -866,11 +879,12 @@ class NetworkTrainer:
             # TRAINING
 
             for step, batch in enumerate(train_dataloader):
+                step_logs = {}
                 current_step.value = global_step
                 with accelerator.accumulate(network):
                     on_step_start(text_encoder, unet)
                     is_train = True
-                    loss = self.process_batch(batch, is_train, train_unet, network, network_has_multiplier, tokenizers, text_encoders, unet, vae, noise_scheduler, vae_dtype, weight_dtype, accelerator, args, train_text_encoder=train_text_encoder)
+                    loss = self.process_batch(batch, is_train, train_unet, network, network_has_multiplier, tokenizers, text_encoders, unet, vae, noise_scheduler, vae_dtype, weight_dtype, accelerator, args, step_logs, train_text_encoder=train_text_encoder)
 
                     accelerator.backward(loss)
                     if accelerator.sync_gradients and args.max_grad_norm != 0.0:
@@ -927,7 +941,7 @@ class NetworkTrainer:
                     progress_bar.set_postfix(**{**max_mean_logs, **logs})
 
                 if args.logging_dir is not None:
-                    logs = self.generate_step_logs(args, current_loss, avr_loss, lr_scheduler, keys_scaled, mean_norm, maximum_norm)
+                    logs = self.generate_step_logs(args, current_loss, avr_loss, lr_scheduler, keys_scaled, mean_norm, maximum_norm, step_logs)
                     accelerator.log(logs, step=global_step)
 
                 if global_step >= args.max_train_steps:
@@ -940,8 +954,9 @@ class NetworkTrainer:
 
             with torch.no_grad():
                 for val_step, batch in enumerate(val_dataloader):
+                    step_logs = {}
                     is_train = False
-                    loss = self.process_batch(batch, is_train, train_unet, network, network_has_multiplier, tokenizers, text_encoders, unet, vae, noise_scheduler, vae_dtype, weight_dtype, accelerator, args)
+                    loss = self.process_batch(batch, is_train, train_unet, network, network_has_multiplier, tokenizers, text_encoders, unet, vae, noise_scheduler, vae_dtype, weight_dtype, accelerator, args, step_logs)
 
                     current_loss = loss.detach().item()
                     val_loss_recorder.add(epoch=epoch, step=val_step, loss=current_loss)
