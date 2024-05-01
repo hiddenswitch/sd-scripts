@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 import argparse
 import random
 import re
@@ -483,10 +484,22 @@ def apply_masked_loss(loss, batch):
     loss = loss * mask_image
     return loss, mask_image
 
-def apply_bowtie_masked_loss(loss, batch):
-    # Merge the MrM and Bowtie masks to have MrM mask in channel 1 and bowtie mask in channel 2
+## Custom loss function for weighing a character, and specifical details of the character, differently from the background
+def apply_multichannel_masked_loss(loss, batch, weight1, weight2, weight3):
+    # Merge the character and detail masks to have character mask in channel 1 and detail mask in channel 2
     mask1 = batch["conditioning_images"].to(dtype=loss.dtype)[:, 0].unsqueeze(1)
     mask2 = batch["conditioning_images"].to(dtype=loss.dtype)[:, 1].unsqueeze(1)
+
+    # Logging for debugging if needed
+    # threshold = 0.5
+    # red_pixels = (mask1 > threshold).sum().item()
+    # green_pixels = (mask2 > threshold).sum().item()
+    #
+    # total_red_pixels = mask1.numel()
+    # total_green_pixels = mask2.numel()
+    #
+    # logger.info(f"Number of 'red' pixels in mask1 above threshold: {red_pixels}, total pixels: {total_red_pixels}")
+    # logger.info(f"Number of 'green' pixels in mask2 above threshold: {green_pixels}, total pixels: {total_green_pixels}")
 
     # resize to the same size as the loss
     mask1 = torch.nn.functional.interpolate(mask1, size=loss.shape[2:], mode="area")
@@ -502,18 +515,19 @@ def apply_bowtie_masked_loss(loss, batch):
     # Assuming mask channel is either 0 or 1, calculate total # of pixels "in" the mask
     bowtie_pixels = mask2.sum()
 
-    background_weight = 1.0
-    mrm_weight = 1.5
-    bowtie_weight = 2.0
+    background_weight = weight1
+    character_weight = weight2
+    detail_weight = weight3
 
-    background_loss = background_weight * (loss * mask1)
-    mrm_loss = mrm_weight * (loss * mask1_inv)
-    bowtie_loss = torch.maximum(torch.tensor(0.0, dtype=loss.dtype, device=loss.device),
-                          -1 + bowtie_weight * (torch.log(loss.numel()) - torch.log(bowtie_pixels)) * (loss * mask2))
+    background_loss = background_weight * (loss * mask1_inv)
+    character_loss = character_weight * (loss * mask1)
+    detail_loss = (detail_weight * (torch.log(torch.tensor(loss.numel(), device=loss.device).float()) - torch.log(bowtie_pixels.float())) * (loss * mask2))
 
-    final_loss = background_loss + mrm_loss + bowtie_loss
+    detail_loss = torch.maximum(torch.tensor(0.0, dtype=loss.dtype, device=loss.device), -1 + detail_loss)
 
-    return final_loss, mask1, mask2
+    final_loss = background_loss + character_loss + detail_loss
+
+    return final_loss, mask1_inv
 
 
 """

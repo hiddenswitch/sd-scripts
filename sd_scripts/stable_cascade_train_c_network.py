@@ -36,7 +36,7 @@ from .library import stable_cascade_utils as sc_utils
 from .library import stable_cascade as sc
 from .library.sdxl_train_util import add_sdxl_training_arguments
 from .library.custom_train_functions import (
-    apply_masked_loss,
+    apply_masked_loss, apply_multichannel_masked_loss,
 )
 from .library.utils import setup_logging, add_logging_arguments
 
@@ -900,7 +900,8 @@ class NetworkTrainer:
                         loss = torch.nn.functional.mse_loss(pred.float(), target.float(), reduction="none")
 
                         if args.masked_loss and np.random.rand() < args.masked_loss_prob:
-                            loss, noise_mask = apply_masked_loss(loss, batch)
+                            # loss, noise_mask = apply_masked_loss(loss, batch)
+                            loss, noise_mask = apply_multichannel_masked_loss(loss, batch, 1.0, 1.5, 3.0)
                         else:
                             noise_mask = torch.ones_like(noise, device=noise.device)
 

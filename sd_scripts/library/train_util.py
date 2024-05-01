@@ -1224,8 +1224,12 @@ class BaseDataset(torch.utils.data.Dataset):
             images.append(image)
             latents_list.append(latents)
 
-            target_size = (image.shape[2], image.shape[1]) if image is not None else (
-            latents.shape[2] * 8, latents.shape[1] * 8)
+            if image is not None:
+                target_size = (image.shape[2], image.shape[1])
+            elif image_info.latents_npz is not None:
+                target_size = (latents.shape[2] * 32, latents.shape[1] * 32)
+            else:
+                target_size = (latents.shape[2] * 8, latents.shape[1] * 8)
 
             if not flipped:
                 crop_left_top = (crop_ltrb[0], crop_ltrb[1])
