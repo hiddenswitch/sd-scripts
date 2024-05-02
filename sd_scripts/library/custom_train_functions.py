@@ -519,17 +519,21 @@ def apply_multichannel_masked_loss(loss, batch, weight1, weight2, weight3):
 
     background_loss = background_weight * (loss * mask1_inv)
     character_loss = character_weight * (loss * mask1)
-    detail_loss = (detail_weight * (torch.log(torch.tensor(loss.numel(), device=loss.device).float()) - torch.log(bowtie_pixels.float())) * (loss * mask2))
 
-    detail_loss = torch.maximum(torch.tensor(0.0, dtype=loss.dtype, device=loss.device), -1 + detail_loss)
-    #
+    if bowtie_pixels == 0:
+        detail_loss = torch.tensor(0.0, dtype=loss.dtype, device=loss.device)
+    else:
+
+        detail_loss = (detail_weight * (torch.log(torch.tensor(loss.numel(), device=loss.device).float()) - torch.log(bowtie_pixels.float())) * (loss * mask2))
+
+        detail_loss = torch.maximum(torch.tensor(0.0, dtype=loss.dtype, device=loss.device), -1 + detail_loss)
+
     # logger.info(f"Previous loss: {loss.sum()}")
     # logger.info(f"Total background loss: {background_loss.sum()}")
     # logger.info(f"Total character loss: {character_loss.sum()}")
     # logger.info(f"Total detail loss: {detail_loss.sum()}")
 
     final_loss = background_loss + character_loss + detail_loss
-
     return final_loss, mask1_inv
 
 

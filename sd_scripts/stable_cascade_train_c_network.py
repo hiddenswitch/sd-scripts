@@ -921,7 +921,7 @@ class NetworkTrainer:
 
                             if args.masked_loss and np.random.rand() < args.masked_loss_prob:
                                 # loss, noise_mask = apply_masked_loss(loss, batch)
-                                loss, noise_mask = apply_multichannel_masked_loss(loss, batch, 1.0, 1.0, 1.0)
+                                loss, noise_mask = apply_multichannel_masked_loss(loss, batch, 1.0, 1.5, 2.0)
                                 noise_mask = torch.ones_like(noise, device=noise.device)
                             else:
                                 noise_mask = torch.ones_like(noise, device=noise.device)
