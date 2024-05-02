@@ -3325,6 +3325,11 @@ def add_training_arguments(parser: argparse.ArgumentParser, support_dreambooth: 
         help="Weight for standard deviation loss. Encourages the model to learn noise with a stddev like the true noise. May prevent 'deep fry'. 1.0 is a good starting place.",
     )
     parser.add_argument(
+        "--use_sig_loss",
+        action="store_true",
+        help="apply mask for calculating loss. conditioning_data_dir is required for dataset. / 損失計算時にマスクを適用する。datasetにはconditioning_data_dirが必要",
+    )
+    parser.add_argument(
         "--masked_loss_prob",
         type=float,
         default=1.0,

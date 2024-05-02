@@ -12,7 +12,6 @@ import torch.nn as nn
 import torch.utils.checkpoint
 import torchvision
 
-
 MODEL_VERSION_STABLE_CASCADE = "stable_cascade"
 
 EFFNET_PREPROCESS = torchvision.transforms.Compose(
@@ -30,8 +29,8 @@ class vector_quantize(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x, codebook):
         with torch.no_grad():
-            codebook_sqr = torch.sum(codebook**2, dim=1)
-            x_sqr = torch.sum(x**2, dim=1, keepdim=True)
+            codebook_sqr = torch.sum(codebook ** 2, dim=1)
+            x_sqr = torch.sum(x ** 2, dim=1, keepdim=True)
 
             dist = torch.addmm(codebook_sqr + x_sqr, x, codebook.t(), alpha=-2.0, beta=1.0)
             _, indices = dist.min(dim=1)
@@ -171,7 +170,6 @@ class EfficientNetEncoder(nn.Module):
 
 from torch.nn import Conv2d
 from torch.nn import Linear
-
 
 r"""
 class Attention2D(nn.Module):
@@ -458,7 +456,8 @@ class UpDownBlock2d(nn.Module):
         super().__init__()
         assert mode in ["up", "down"]
         interpolation = (
-            nn.Upsample(scale_factor=2 if mode == "up" else 0.5, mode="bilinear", align_corners=True) if enabled else nn.Identity()
+            nn.Upsample(scale_factor=2 if mode == "up" else 0.5, mode="bilinear",
+                        align_corners=True) if enabled else nn.Identity()
         )
         mapping = nn.Conv2d(c_in, c_out, kernel_size=1)
         self.blocks = nn.ModuleList([interpolation, mapping] if mode == "up" else [mapping, interpolation])
@@ -540,11 +539,12 @@ class StageAResBlock(nn.Module):
 
 
 class StageA(nn.Module):
-    def __init__(self, levels=2, bottleneck_blocks=12, c_hidden=384, c_latent=4, codebook_size=8192, scale_factor=0.43):  # 0.3764
+    def __init__(self, levels=2, bottleneck_blocks=12, c_hidden=384, c_latent=4, codebook_size=8192,
+                 scale_factor=0.43):  # 0.3764
         super().__init__()
         self.c_latent = c_latent
         self.scale_factor = scale_factor
-        c_levels = [c_hidden // (2**i) for i in reversed(range(levels))]
+        c_levels = [c_hidden // (2 ** i) for i in reversed(range(levels))]
 
         # Encoder blocks
         self.in_block = nn.Sequential(nn.PixelUnshuffle(2), nn.Conv2d(3 * 4, c_levels[0], kernel_size=1))
@@ -574,7 +574,8 @@ class StageA(nn.Module):
                 up_blocks.append(block)
             if i < levels - 1:
                 up_blocks.append(
-                    nn.ConvTranspose2d(c_levels[levels - 1 - i], c_levels[levels - 2 - i], kernel_size=4, stride=2, padding=1)
+                    nn.ConvTranspose2d(c_levels[levels - 1 - i], c_levels[levels - 2 - i], kernel_size=4, stride=2,
+                                       padding=1)
                 )
         self.up_blocks = nn.Sequential(*up_blocks)
         self.out_block = nn.Sequential(
@@ -672,7 +673,7 @@ class StageB(nn.Module):
 
         self.embedding = nn.Sequential(
             nn.PixelUnshuffle(patch_size),
-            nn.Conv2d(c_in * (patch_size**2), c_hidden[0], kernel_size=1),
+            nn.Conv2d(c_in * (patch_size ** 2), c_hidden[0], kernel_size=1),
             LayerNorm2d(c_hidden[0], elementwise_affine=False, eps=1e-6),
         )
 
@@ -733,7 +734,8 @@ class StageB(nn.Module):
             for j in range(blocks[1][::-1][i]):
                 for k, block_type in enumerate(level_config[i]):
                     c_skip = c_hidden[i] if i < len(c_hidden) - 1 and j == k == 0 else 0
-                    block = get_block(block_type, c_hidden[i], nhead[i], c_skip=c_skip, dropout=dropout[i], self_attn=self_attn[i])
+                    block = get_block(block_type, c_hidden[i], nhead[i], c_skip=c_skip, dropout=dropout[i],
+                                      self_attn=self_attn[i])
                     up_block.append(block)
             self.up_blocks.append(up_block)
             if block_repeat is not None:
@@ -745,7 +747,7 @@ class StageB(nn.Module):
         # OUTPUT
         self.clf = nn.Sequential(
             LayerNorm2d(c_hidden[0], elementwise_affine=False, eps=1e-6),
-            nn.Conv2d(c_hidden[0], c_out * (patch_size**2), kernel_size=1),
+            nn.Conv2d(c_hidden[0], c_out * (patch_size ** 2), kernel_size=1),
             nn.PixelShuffle(patch_size),
         )
 
@@ -836,7 +838,8 @@ class StageB(nn.Module):
                     ):
                         skip = level_outputs[i] if k == 0 and i > 0 else None
                         if skip is not None and (x.size(-1) != skip.size(-1) or x.size(-2) != skip.size(-2)):
-                            x = torch.nn.functional.interpolate(x.float(), skip.shape[-2:], mode="bilinear", align_corners=True)
+                            x = torch.nn.functional.interpolate(x.float(), skip.shape[-2:], mode="bilinear",
+                                                                align_corners=True)
                         x = block(x, skip)
                     elif isinstance(block, AttnBlock) or (
                         hasattr(block, "_fsdp_wrapped_module") and isinstance(block._fsdp_wrapped_module, AttnBlock)
@@ -937,7 +940,7 @@ class StageC(nn.Module):
 
         self.embedding = nn.Sequential(
             nn.PixelUnshuffle(patch_size),
-            nn.Conv2d(c_in * (patch_size**2), c_hidden[0], kernel_size=1),
+            nn.Conv2d(c_in * (patch_size ** 2), c_hidden[0], kernel_size=1),
             LayerNorm2d(c_hidden[0], elementwise_affine=False, eps=1e-6),
         )
 
@@ -998,7 +1001,8 @@ class StageC(nn.Module):
             for j in range(blocks[1][::-1][i]):
                 for k, block_type in enumerate(level_config[i]):
                     c_skip = c_hidden[i] if i < len(c_hidden) - 1 and j == k == 0 else 0
-                    block = get_block(block_type, c_hidden[i], nhead[i], c_skip=c_skip, dropout=dropout[i], self_attn=self_attn[i])
+                    block = get_block(block_type, c_hidden[i], nhead[i], c_skip=c_skip, dropout=dropout[i],
+                                      self_attn=self_attn[i])
                     up_block.append(block)
             self.up_blocks.append(up_block)
             if block_repeat is not None:
@@ -1010,7 +1014,7 @@ class StageC(nn.Module):
         # OUTPUT
         self.clf = nn.Sequential(
             LayerNorm2d(c_hidden[0], elementwise_affine=False, eps=1e-6),
-            nn.Conv2d(c_hidden[0], c_out * (patch_size**2), kernel_size=1),
+            nn.Conv2d(c_hidden[0], c_out * (patch_size ** 2), kernel_size=1),
             nn.PixelShuffle(patch_size),
         )
 
@@ -1088,7 +1092,8 @@ class StageC(nn.Module):
                         if cnet is not None:
                             next_cnet = cnet()
                             if next_cnet is not None:
-                                x = x + nn.functional.interpolate(next_cnet, size=x.shape[-2:], mode="bilinear", align_corners=True)
+                                x = x + nn.functional.interpolate(next_cnet, size=x.shape[-2:], mode="bilinear",
+                                                                  align_corners=True)
                         x = block(x)
                     elif isinstance(block, AttnBlock) or (
                         hasattr(block, "_fsdp_wrapped_module") and isinstance(block._fsdp_wrapped_module, AttnBlock)
@@ -1116,11 +1121,13 @@ class StageC(nn.Module):
                     ):
                         skip = level_outputs[i] if k == 0 and i > 0 else None
                         if skip is not None and (x.size(-1) != skip.size(-1) or x.size(-2) != skip.size(-2)):
-                            x = torch.nn.functional.interpolate(x.float(), skip.shape[-2:], mode="bilinear", align_corners=True)
+                            x = torch.nn.functional.interpolate(x.float(), skip.shape[-2:], mode="bilinear",
+                                                                align_corners=True)
                         if cnet is not None:
                             next_cnet = cnet()
                             if next_cnet is not None:
-                                x = x + nn.functional.interpolate(next_cnet, size=x.shape[-2:], mode="bilinear", align_corners=True)
+                                x = x + nn.functional.interpolate(next_cnet, size=x.shape[-2:], mode="bilinear",
+                                                                  align_corners=True)
                         x = block(x, skip)
                     elif isinstance(block, AttnBlock) or (
                         hasattr(block, "_fsdp_wrapped_module") and isinstance(block._fsdp_wrapped_module, AttnBlock)
@@ -1264,9 +1271,9 @@ class DDIMSampler(SimpleSampler):
         if len(a_prev.shape) == 1:
             a_prev, b_prev = a_prev.view(-1, *[1] * (len(x0.shape) - 1)), b_prev.view(-1, *[1] * (len(x0.shape) - 1))
 
-        sigma_tau = eta * (b_prev**2 / b**2).sqrt() * (1 - a**2 / a_prev**2).sqrt() if eta > 0 else 0
+        sigma_tau = eta * (b_prev ** 2 / b ** 2).sqrt() * (1 - a ** 2 / a_prev ** 2).sqrt() if eta > 0 else 0
         # x = a_prev * x0 + (1 - a_prev**2 - sigma_tau ** 2).sqrt() * epsilon + sigma_tau * torch.randn_like(x0)
-        x = a_prev * x0 + (b_prev**2 - sigma_tau**2).sqrt() * epsilon + sigma_tau * torch.randn_like(x0)
+        x = a_prev * x0 + (b_prev ** 2 - sigma_tau ** 2).sqrt() * epsilon + sigma_tau * torch.randn_like(x0)
         return x
 
 
@@ -1284,16 +1291,30 @@ class LCMSampler(SimpleSampler):
 
 
 class GDF:
-    def __init__(self, schedule, input_scaler, target, noise_cond, loss_weight, offset_noise=0):
+    def __init__(self, schedule, input_scaler, target, noise_cond, loss_weight, num_timesteps=1000, offset_noise=0):
         self.schedule = schedule
         self.input_scaler = input_scaler
         self.target = target
         self.noise_cond = noise_cond
         self.loss_weight = loss_weight
+        self.num_timesteps = num_timesteps
         self.offset_noise = offset_noise
 
+        # Simulate betas and compute alphas and alphas_cumprod
+        timesteps = torch.linspace(0, 1, num_timesteps)
+        logSNR = self.schedule(timesteps)
+        betas = 1 - torch.exp(-logSNR)  # This assumes logSNR is log(1/alpha)
+        self.alphas = 1 - betas
+        self.alphas_cumprod = torch.cumprod(self.alphas, dim=0)
+
+    def sample_timesteps(self, batch_size, min_timestep=0, max_timestep=None):
+        if max_timestep is None:
+            max_timestep = self.num_timesteps - 1
+        return torch.randint(min_timestep, max_timestep + 1, (batch_size,)).long()
+
     def setup_limits(self, stretch_max=True, stretch_min=True, shift=1):
-        stretched_limits = self.input_scaler.setup_limits(self.schedule, self.input_scaler, stretch_max, stretch_min, shift)
+        stretched_limits = self.input_scaler.setup_limits(self.schedule, self.input_scaler, stretch_max, stretch_min,
+                                                          shift)
         return stretched_limits
 
     def diffuse(self, x0, epsilon=None, t=None, shift=1, loss_shift=1, offset=None):
@@ -1310,7 +1331,8 @@ class GDF:
         target = self.target(x0, epsilon, logSNR, a, b)
 
         # noised, noise, logSNR, t_cond
-        return x0 * a + epsilon * b, epsilon, target, logSNR, self.noise_cond(logSNR), self.loss_weight(logSNR, shift=loss_shift)
+        return x0 * a + epsilon * b, epsilon, target, logSNR, self.noise_cond(logSNR), self.loss_weight(logSNR,
+                                                                                                        shift=loss_shift)
 
     def undiffuse(self, x, logSNR, pred):
         a, b = self.input_scaler(logSNR)
@@ -1343,7 +1365,8 @@ class GDF:
             sampler = DDPMSampler(self)
         r_range = torch.linspace(t_start, t_end, timesteps + 1)
         schedule = self.schedule if schedule is None else schedule
-        logSNR_range = schedule(r_range, shift=shift)[:, None].expand(-1, shape[0] if x_init is None else x_init.size(0)).to(device)
+        logSNR_range = schedule(r_range, shift=shift)[:, None].expand(-1, shape[0] if x_init is None else x_init.size(
+            0)).to(device)
 
         x = sampler.init_x(shape).to(device) if x_init is None else x_init.clone()
         if cfg is not None:
@@ -1383,7 +1406,8 @@ class GDF:
                 if isinstance(cfg_val, (list, tuple)):
                     assert len(cfg_val) == 2, "cfg must be a float or a list/tuple of length 2"
                     cfg_val = cfg_val[0] * r_range[i].item() + cfg_val[1] * (1 - r_range[i].item())
-                pred, pred_unconditional = model(torch.cat([x, x], dim=0), noise_cond.repeat(2), **model_inputs).chunk(2)
+                pred, pred_unconditional = model(torch.cat([x, x], dim=0), noise_cond.repeat(2), **model_inputs).chunk(
+                    2)
                 pred_cfg = torch.lerp(pred_unconditional, pred, cfg_val)
                 if cfg_rho > 0:
                     std_pos, std_cfg = pred.std(), pred_cfg.std()
@@ -1649,6 +1673,5 @@ class AdaptiveLossWeight(BaseLossWeight):
     def update_buckets(self, logSNR, loss, beta=0.99):
         indices = torch.searchsorted(self.bucket_ranges.to(logSNR.device), logSNR).cpu()
         self.bucket_losses[indices] = self.bucket_losses[indices] * beta + loss.detach().cpu() * (1 - beta)
-
 
 # endregion gdf

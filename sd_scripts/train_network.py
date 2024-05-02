@@ -44,6 +44,7 @@ from .library.custom_train_functions import (
     add_v_prediction_like_loss,
     apply_debiased_estimation,
     apply_masked_loss,
+    apply_multichannel_masked_loss,
 )
 from .library.utils import setup_logging, add_logging_arguments
 
@@ -216,7 +217,7 @@ class NetworkTrainer:
 
         loss = torch.nn.functional.mse_loss(noise_pred.float(), target.float(), reduction="none")
         if args.masked_loss and np.random.rand() < args.masked_loss_prob:
-            loss, noise_mask = apply_masked_loss(loss, batch)
+            loss, noise_mask = apply_multichannel_masked_loss(loss, batch, 1.0, 1.0, 1.0)
         else:
             noise_mask = torch.ones_like(noise, device=noise.device)
         loss = loss.mean([1, 2, 3])

@@ -784,6 +784,7 @@ class NetworkTrainer:
             target=sc.EpsilonTarget(),
             noise_cond=sc.CosineTNoiseCond(),
             loss_weight=sc.AdaptiveLossWeight() if args.adaptive_loss_weight else sc.P2LossWeight(),
+            num_timesteps= 1000 if args.max_train_steps is None else args.max_train_steps,
         )
 
         if accelerator.is_main_process:
@@ -897,30 +898,51 @@ class NetworkTrainer:
                         pred = stage_c(
                             noised, noise_cond, clip_text=encoder_hidden_states, clip_text_pooled=pool, clip_img=zero_img_emb
                         )
-                        loss = torch.nn.functional.mse_loss(pred.float(), target.float(), reduction="none")
 
-                        if args.masked_loss and np.random.rand() < args.masked_loss_prob:
-                            # loss, noise_mask = apply_masked_loss(loss, batch)
-                            loss, noise_mask = apply_multichannel_masked_loss(loss, batch, 1.0, 1.5, 3.0)
+                        if args.use_sig_loss:
+                            timesteps = gdf.sample_timesteps(latents.size(0))
+                            alphas_cumprod = gdf.alphas_cumprod.to(latents.device)
+                            ac = alphas_cumprod[timesteps]
+                            mae_loss = torch.nn.functional.l1_loss(pred, target, reduction="none")
+                            base_loss = 1/-mae_loss.exp() + 1
+                            loss = base_loss.mean(dim=(2, 3), keepdims=True) * ac
+                            loss = loss + base_loss.std(dim=(2,3), keepdims=True) * (1-ac)
+                            if args.masked_loss and np.random.rand() < args.masked_loss_prob:
+                                # loss, noise_mask = apply_masked_loss(loss, batch)
+                                loss, noise_mask = apply_multichannel_masked_loss(loss, batch, 1.0, 1.0, 2.0)
+                            else:
+                                noise_mask = torch.ones_like(noise, device=noise.device)
+
+                            loss = loss.mean(dim=(1,2,3))
+                            loss_adjusted = (loss * loss_weight)
+                            loss_adjusted = loss_adjusted.mean()
                         else:
-                            noise_mask = torch.ones_like(noise, device=noise.device)
+                            loss = torch.nn.functional.mse_loss(pred.float(), target.float(), reduction="none")
 
-                        loss = loss.mean(dim=[1, 2, 3])
-                        loss_adjusted = (loss * loss_weight)
+                            if args.masked_loss and np.random.rand() < args.masked_loss_prob:
+                                # loss, noise_mask = apply_masked_loss(loss, batch)
+                                loss, noise_mask = apply_multichannel_masked_loss(loss, batch, 1.0, 1.0, 1.0)
+                                noise_mask = torch.ones_like(noise, device=noise.device)
+                            else:
+                                noise_mask = torch.ones_like(noise, device=noise.device)
 
-                        pred_std, pred_skews, pred_kurtoses = train_util.noise_stats(pred * noise_mask)
-                        true_std, true_skews, true_kurtoses = train_util.noise_stats(noise * noise_mask)
+                            loss = loss.mean(dim=[1, 2, 3])
+                            loss_adjusted = (loss * loss_weight)
 
-                        if args.std_loss_weight is not None:
-                            std_loss = torch.nn.functional.mse_loss(pred_std, true_std, reduction="none")
-                            loss = loss + std_loss * args.std_loss_weight
+                            pred_std, pred_skews, pred_kurtoses = train_util.noise_stats(pred * noise_mask)
+                            true_std, true_skews, true_kurtoses = train_util.noise_stats(noise * noise_mask)
 
-                        step_logs["metrics/noise_pred_std"] = pred_std.mean().item()
-                        step_logs["metrics/noise_pred_mean"] = pred.mean()
-                        step_logs["metrics/std_divergence"] = true_std.mean().item()      - pred_std.mean().item()
-                        step_logs["metrics/skew_divergence"] = true_skews.mean().item()    - pred_skews.mean().item()
-                        step_logs["metrics/kurtosis_divergence"] = true_kurtoses.mean().item() - pred_kurtoses.mean().item()
-                        loss_adjusted = loss_adjusted.mean()
+                            if args.std_loss_weight is not None:
+                                std_loss = torch.nn.functional.mse_loss(pred_std, true_std, reduction="none")
+                                loss = loss + std_loss * args.std_loss_weight
+
+                            step_logs["metrics/noise_pred_std"] = pred_std.mean().item()
+                            step_logs["metrics/noise_pred_mean"] = pred.mean()
+                            step_logs["metrics/std_divergence"] = true_std.mean().item()      - pred_std.mean().item()
+                            step_logs["metrics/skew_divergence"] = true_skews.mean().item()    - pred_skews.mean().item()
+                            step_logs["metrics/kurtosis_divergence"] = true_kurtoses.mean().item() - pred_kurtoses.mean().item()
+
+                            loss_adjusted = loss_adjusted.mean()
 
                     if args.adaptive_loss_weight:
                         gdf.loss_weight.update_buckets(logSNR, loss)  # use loss instead of loss_adjusted
