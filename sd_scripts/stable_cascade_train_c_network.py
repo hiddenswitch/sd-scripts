@@ -375,10 +375,18 @@ class NetworkTrainer:
                 # workaround for LyCORIS (;^ω^)
                 net_kwargs["dropout"] = args.network_dropout
 
+            if args.text_encoder_dim is None:
+                args.text_encoder_dim = args.network_dim
+
+            if args.text_encoder_alpha is None:
+                args.text_encoder_alpha = args.network_alpha
+
             network = network_module.create_network(
                 1.0,
                 args.network_dim,
                 args.network_alpha,
+                args.text_encoder_dim,
+                args.text_encoder_alpha,
                 effnet,
                 text_encoder,
                 stage_c,
@@ -1135,6 +1143,18 @@ def setup_parser() -> argparse.ArgumentParser:
         type=float,
         default=1,
         help="alpha for LoRA weight scaling, default 1 (same as network_dim for same behavior as old version) / LoRaの重み調整のalpha値、デフォルト1（旧バージョンと同じ動作をするにはnetwork_dimと同じ値を指定）",
+    )
+    parser.add_argument(
+        "--text_encoder_dim",
+        type=int,
+        default=None,
+        help="network dimensions for text encoder(depends on each network) / モジュールの次元数（ネットワークにより定義は異なります）",
+    )
+    parser.add_argument(
+        "--text_encoder_alpha",
+        type=float,
+        default=1,
+        help="alpha for for text encoder LoRA weight scaling, default 1 (same as network_dim for same behavior as old version) / LoRaの重み調整のalpha値、デフォルト1（旧バージョンと同じ動作をするにはnetwork_dimと同じ値を指定）",
     )
     parser.add_argument(
         "--network_dropout",

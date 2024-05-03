@@ -421,6 +421,8 @@ def create_network(
     multiplier: float,
     network_dim: Optional[int],
     network_alpha: Optional[float],
+    text_encoder_dim: Optional[int],
+    text_encoder_alpha: Optional[float],
     vae: AutoencoderKL,
     text_encoder: Union[CLIPTextModel, List[CLIPTextModel]],
     unet,
@@ -431,6 +433,11 @@ def create_network(
         network_dim = 4  # default
     if network_alpha is None:
         network_alpha = 1.0
+
+    if text_encoder_dim is None:
+        text_encoder_dim = network_dim
+    if text_encoder_alpha is None:
+        text_encoder_alpha = network_alpha
 
     # extract dim/alpha for conv2d, and block dim
     conv_dim = kwargs.get("conv_dim", None)
@@ -482,6 +489,8 @@ def create_network(
         multiplier=multiplier,
         lora_dim=network_dim,
         alpha=network_alpha,
+        text_encoder_dim=text_encoder_dim,
+        text_encoder_alpha=text_encoder_alpha,
         dropout=neuron_dropout,
         rank_dropout=rank_dropout,
         module_dropout=module_dropout,
@@ -770,6 +779,8 @@ class LoRANetwork(torch.nn.Module):
         multiplier: float = 1.0,
         lora_dim: int = 4,
         alpha: float = 1,
+        text_encoder_dim: int = 4,
+        text_encoder_alpha: float = 1,
         dropout: Optional[float] = None,
         rank_dropout: Optional[float] = None,
         module_dropout: Optional[float] = None,
@@ -802,6 +813,9 @@ class LoRANetwork(torch.nn.Module):
         self.dropout = dropout
         self.rank_dropout = rank_dropout
         self.module_dropout = module_dropout
+        self.text_encoder_dim = text_encoder_dim
+        self.text_encoder_alpha = text_encoder_alpha
+
 
         if modules_dim is not None:
             logger.info(f"create LoRA network from weights")
@@ -879,8 +893,12 @@ class LoRANetwork(torch.nn.Module):
                             else:
                                 # 通常、すべて対象とする
                                 if is_linear or is_conv2d_1x1:
-                                    dim = self.lora_dim
-                                    alpha = self.alpha
+                                    if is_unet:
+                                        dim = self.lora_dim
+                                        alpha = self.alpha
+                                    else:
+                                        dim = self.text_encoder_dim
+                                        alpha = self.text_encoder_alpha
                                 elif self.conv_lora_dim is not None:
                                     dim = self.conv_lora_dim
                                     alpha = self.conv_alpha
