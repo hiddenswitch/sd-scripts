@@ -915,11 +915,6 @@ class NetworkTrainer:
                             base_loss = 1/-mae_loss.exp() + 1
                             loss = base_loss.mean(dim=(2, 3), keepdims=True) * ac
                             loss = loss + base_loss.std(dim=(2,3), keepdims=True) * (1-ac)
-                            if args.masked_loss and np.random.rand() < args.masked_loss_prob:
-                                # loss, noise_mask = apply_masked_loss(loss, batch)
-                                loss, noise_mask = apply_multichannel_masked_loss(loss, batch, 1.0, 1.0, 2.0)
-                            else:
-                                noise_mask = torch.ones_like(noise, device=noise.device)
 
                             loss = loss.mean(dim=(1,2,3))
                             loss_adjusted = (loss * loss_weight)
@@ -927,10 +922,11 @@ class NetworkTrainer:
                         else:
                             loss = torch.nn.functional.mse_loss(pred.float(), target.float(), reduction="none")
 
-                            if args.masked_loss and np.random.rand() < args.masked_loss_prob:
-                                # loss, noise_mask = apply_masked_loss(loss, batch)
-                                loss, noise_mask = apply_multichannel_masked_loss(loss, batch, 1.0, 1.5, 2.0)
+                            if args.masked_loss and args.weighted_loss:
+                                loss, noise_mask = apply_multichannel_masked_loss(loss, batch, args.background_weight, args.character_weight, args.detail_weight)
                                 noise_mask = torch.ones_like(noise, device=noise.device)
+                            elif args.masked_loss and np.random.rand() < args.masked_loss_prob:
+                                loss, noise_mask = apply_masked_loss(loss, batch)
                             else:
                                 noise_mask = torch.ones_like(noise, device=noise.device)
 
@@ -1212,6 +1208,29 @@ def setup_parser() -> argparse.ArgumentParser:
         "--no_half_vae",
         action="store_true",
         help="do not use fp16/bf16 VAE in mixed precision (use float VAE) / mixed precisionでも fp16/bf16 VAEを使わずfloat VAEを使う",
+    )
+    parser.add_argument(
+        "--background_weight",
+        type=float,
+        default=1.0,
+        help="Background weight for multi-mask training",
+    )
+    parser.add_argument(
+        "--character_weight",
+        type=float,
+        default=1.0,
+        help="Character weight for multi-mask training",
+    )
+    parser.add_argument(
+        "--detail_weight",
+        type=float,
+        default=1.0,
+        help="Detail weight for multi-mask training",
+    )
+    parser.add_argument(
+        "--weighted_loss",
+        action="store_true",
+        help="Use multi-mask weighted loss",
     )
     return parser
 
