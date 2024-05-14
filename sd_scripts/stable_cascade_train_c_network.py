@@ -1209,29 +1209,6 @@ def setup_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="do not use fp16/bf16 VAE in mixed precision (use float VAE) / mixed precisionでも fp16/bf16 VAEを使わずfloat VAEを使う",
     )
-    parser.add_argument(
-        "--background_weight",
-        type=float,
-        default=1.0,
-        help="Background weight for multi-mask training",
-    )
-    parser.add_argument(
-        "--character_weight",
-        type=float,
-        default=1.0,
-        help="Character weight for multi-mask training",
-    )
-    parser.add_argument(
-        "--detail_weight",
-        type=float,
-        default=1.0,
-        help="Detail weight for multi-mask training",
-    )
-    parser.add_argument(
-        "--weighted_loss",
-        action="store_true",
-        help="Use multi-mask weighted loss",
-    )
     return parser
 
 def is_decreasing(list, min_delta=0.001):

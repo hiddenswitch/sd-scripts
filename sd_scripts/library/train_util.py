@@ -3335,6 +3335,29 @@ def add_training_arguments(parser: argparse.ArgumentParser, support_dreambooth: 
         default=1.0,
         help="probability of masking loss (default is None) / masked lossの確率（デフォルトはNone）",
     )
+    parser.add_argument(
+        "--background_weight",
+        type=float,
+        default=1.0,
+        help="Background weight for multi-mask training",
+    )
+    parser.add_argument(
+        "--character_weight",
+        type=float,
+        default=1.0,
+        help="Character weight for multi-mask training",
+    )
+    parser.add_argument(
+        "--detail_weight",
+        type=float,
+        default=1.0,
+        help="Detail weight for multi-mask training",
+    )
+    parser.add_argument(
+        "--weighted_loss",
+        action="store_true",
+        help="Use multi-mask weighted loss",
+    )
 
     if support_dreambooth:
         # DreamBooth training
