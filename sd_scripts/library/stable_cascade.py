@@ -797,6 +797,7 @@ class StageB(nn.Module):
     def gen_c_embeddings(self, clip):
         if len(clip.shape) == 2:
             clip = clip.unsqueeze(1)
+        clip = clip.to(device=self.clip_mapper.weight.device, dtype=self.clip_mapper.weight.dtype)
         clip = self.clip_mapper(clip).view(clip.size(0), clip.size(1) * self.c_clip_seq, -1)
         clip = self.clip_norm(clip)
         return clip
