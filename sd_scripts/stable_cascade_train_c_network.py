@@ -802,10 +802,23 @@ class NetworkTrainer:
             init_kwargs = {}
             if args.wandb_run_name:
                 init_kwargs["wandb"] = {"name": args.wandb_run_name}
+
+            additional_params = {
+                "Network Dim": metadata["ss_network_dim"],
+                "Network Alpha": metadata["ss_network_alpha"],
+                "Gradient Accumulation Steps": metadata["ss_gradient_accumulation_steps"],
+                "Batch Size": args.train_batch_size,
+                "Optimizer": args.optimizer_type,
+                "U-Net LR": metadata["ss_unet_lr"],
+                "TE LR": metadata["ss_text_encoder_lr"],
+                "Additional Notes": "" if args.wandb_extra_notes is None else args.wandb_extra_notes,
+            }
+
             if args.log_tracker_config is not None:
                 init_kwargs = toml.load(args.log_tracker_config)
+
             accelerator.init_trackers(
-                "network_train" if args.log_tracker_name is None else args.log_tracker_name, init_kwargs=init_kwargs
+                "network_train" if args.log_tracker_name is None else args.log_tracker_name, config=additional_params, init_kwargs=init_kwargs
             )
 
         loss_recorder = train_util.LossRecorder()

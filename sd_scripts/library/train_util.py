@@ -3142,6 +3142,12 @@ def add_training_arguments(parser: argparse.ArgumentParser, support_dreambooth: 
         help="name of tracker to use for logging, default is script-specific default name / ログ出力に使用するtrackerの名前、省略時はスクリプトごとのデフォルト名",
     )
     parser.add_argument(
+        "--wandb_extra_notes",
+        type=str,
+        default=None,
+        help="Notes to be listed in the wandb config"
+    )
+    parser.add_argument(
         "--wandb_run_name",
         type=str,
         default=None,
