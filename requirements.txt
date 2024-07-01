@@ -1,5 +1,5 @@
 accelerate
-transformers==4.36.2
+transformers>=4.36.2
 diffusers[torch]
 ftfy
 # albumentations
@@ -7,7 +7,7 @@ opencv-python-headless>=4.9.0.80
 einops
 pytorch-lightning
 # bitsandbytes
-tensorboard
+tensorboard>=2.17.0
 safetensors
 # gradio
 altair
@@ -29,6 +29,6 @@ scipy
 # this is for onnx:
 # protobuf
 # open clip for SDXL
-open-clip-torch==2.24.0
+open-clip-torch>=2.24.0
 # For logging
-rich==13.7.0
+rich>=13.7.0
