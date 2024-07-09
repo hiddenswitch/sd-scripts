@@ -628,6 +628,9 @@ class NetworkTrainer:
             "ss_scale_weight_norms": args.scale_weight_norms,
             "ss_ip_noise_gamma": args.ip_noise_gamma,
             "ss_debiased_estimation": bool(args.debiased_estimation_loss),
+            "ss_sigloss": bool(args.use_sig_loss),
+            "ss_dataset": args.train_data_dir,
+            "ss_stdweight": args.std_loss_weight,
         }
 
         if use_user_config:
