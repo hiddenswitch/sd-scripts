@@ -724,7 +724,7 @@ class BaseDataset(torch.utils.data.Dataset):
                     tokens_len = (
                         math.floor(
                             (self.current_step) * (
-                                    (len(flex_tokens) - subset.token_warmup_min) / (subset.token_warmup_step))
+                                (len(flex_tokens) - subset.token_warmup_min) / (subset.token_warmup_step))
                         )
                         + subset.token_warmup_min
                     )
@@ -3076,7 +3076,7 @@ def add_training_arguments(parser: argparse.ArgumentParser, support_dreambooth: 
     parser.add_argument("--seed", type=int, default=None, help="random seed for training / 学習時の乱数のseed")
     parser.add_argument(
         "--gradient_checkpointing", action="store_true",
-        help="enable gradient checkpointing / grandient checkpointingを有効にする"
+        help="enable gradient checkpointing / gradient checkpointingを有効にする"
     )
     parser.add_argument(
         "--gradient_accumulation_steps",
@@ -3219,7 +3219,13 @@ def add_training_arguments(parser: argparse.ArgumentParser, support_dreambooth: 
         default=None,
         help="set maximum time step for U-Net training (1~1000, default is 1000) / U-Net学習時のtime stepの最大値を設定する（1~1000で指定、省略時はデフォルト値(1000)）",
     )
-
+    parser.add_argument(
+        "--loss_type",
+        type=str,
+        default="l2",
+        choices=["l2", "huber", "smooth_l1"],
+        help="The type of loss function to use (L2, Huber, or smooth L1), default is L2 / 使用する損失関数の種類（L2、Huber、またはsmooth L1）、デフォルトはL2",
+    )
     parser.add_argument(
         "--lowram",
         action="store_true",
@@ -3331,6 +3337,66 @@ def add_training_arguments(parser: argparse.ArgumentParser, support_dreambooth: 
         help="Weight for standard deviation loss. Encourages the model to learn noise with a stddev like the true noise. May prevent 'deep fry'. 1.0 is a good starting place.",
     )
     parser.add_argument(
+        "--autostats",
+        type=str,
+        default=None,
+        help="If set, generate and use autostats"
+    )
+    parser.add_argument(
+        "--use_sts_loss",
+        action="store_true",
+        help="Use sts loss",
+    )
+    parser.add_argument(
+        "--autostats_prompts",
+        type=str,
+        default=None,
+        nargs="*",
+        help='Prompts to use for autostats collection',
+    )
+    parser.add_argument(
+        "--autostats_batch_size",
+        type=int,
+        default=1,
+        help='Number of prompts to process at a time',
+    )
+    parser.add_argument(
+        "--autostats_true_noise_weight",
+        type=float,
+        nargs=2,
+        default=[1.0, 1.0],
+        help='Effect size; larger means more detail. Arg 0 is standard deviation, arg 1 is mean.',
+    )
+    parser.add_argument(
+        "--autostats_loss_weights",
+        type=float,
+        nargs=2,
+        default=[1.0, 1.0],
+        help='Loss weights for std/mean',
+    )
+    parser.add_argument(
+        "--autostats_decay_rate",
+        type=float,
+        default=0.0,
+        help='Decay rate for autostats loss weight. 0 = no decay.',
+    )
+    parser.add_argument(
+        "--autostats_effect_min",
+        type=float,
+        default=0.0,
+        help='Minimum effect size for autostats',
+    )
+    parser.add_argument(
+        "--autostats_timestep_weighting",
+        action="store_true",
+        help='Weight timestep selection probability by autostats',
+    )
+    parser.add_argument(
+        "--autostats_dynamic_timestep_weighting",
+        action="store_true",
+        help='When using timestep weighting, dynamically adjust the weighting based on observed losses',
+    )
+    parser.add_argument(
         "--use_sig_loss",
         action="store_true",
         help="apply mask for calculating loss. conditioning_data_dir is required for dataset. / 損失計算時にマスクを適用する。datasetにはconditioning_data_dirが必要",
@@ -3371,6 +3437,7 @@ def add_training_arguments(parser: argparse.ArgumentParser, support_dreambooth: 
             "--prior_loss_weight", type=float, default=1.0, help="loss weight for regularization images / 正則化画像のlossの重み"
         )
 
+
 def add_masked_loss_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--conditioning_data_dir",
@@ -3383,6 +3450,7 @@ def add_masked_loss_arguments(parser: argparse.ArgumentParser):
         action="store_true",
         help="apply mask for calculating loss. conditioning_data_dir is required for dataset. / 損失計算時にマスクを適用する。datasetにはconditioning_data_dirが必要",
     )
+
 
 def verify_training_args(args: argparse.Namespace):
     r"""
@@ -4186,7 +4254,7 @@ def load_tokenizer(args: argparse.Namespace):
     return tokenizer
 
 
-def prepare_accelerator(args: argparse.Namespace):
+def prepare_accelerator(args: argparse.Namespace) -> Accelerator:
     if args.logging_dir is None:
         logging_dir = None
     else:
@@ -4847,33 +4915,108 @@ def save_sd_model_on_train_end_common(
             huggingface_util.upload(args, out_dir, "/" + model_name, force_sync_upload=True)
 
 
-def get_noise_noisy_latents_and_timesteps(args, noise_scheduler, latents):
+def get_timesteps(args, noise_scheduler, probs, b_size, device):
+    min_timestep = 0 if args.min_timestep is None else args.min_timestep
+    max_timestep = noise_scheduler.config.num_train_timesteps if args.max_timestep is None else args.max_timestep
+
+    if args.autostats_timestep_weighting:
+        probs = probs[min_timestep:max_timestep].float()
+        probs = probs / probs.sum()
+        cat = torch.distributions.Categorical(probs=probs)
+        timesteps = cat.sample([b_size]).to(device=device) + min_timestep
+    else:
+        timesteps = torch.randint(min_timestep, max_timestep, (b_size,), device=device)
+    return timesteps.long()
+
+
+def get_timesteps_and_huber_c(args, timesteps, noise_scheduler):
+    if args.loss_type == "huber" or args.loss_type == "smooth_l1":
+        timesteps = timesteps[0].repeat(timesteps.size(0))
+        timestep = timesteps.item()
+
+        if args.huber_schedule == "exponential":
+            alpha = -math.log(args.huber_c) / noise_scheduler.config.num_train_timesteps
+            huber_c = math.exp(-alpha * timestep)
+        elif args.huber_schedule == "snr":
+            alphas_cumprod = noise_scheduler.alphas_cumprod[timestep]
+            sigmas = ((1.0 - alphas_cumprod) / alphas_cumprod) ** 0.5
+            huber_c = (1 - args.huber_c) / (1 + sigmas) ** 2 + args.huber_c
+        elif args.huber_schedule == "constant":
+            huber_c = args.huber_c
+        else:
+            raise NotImplementedError(f"Unknown Huber loss schedule {args.huber_schedule}!")
+    elif args.loss_type == "l2":
+        huber_c = 1  # may be anything, as it's not used
+    else:
+        raise NotImplementedError(f"Unknown loss type {args.loss_type}")
+
+    return timesteps, huber_c
+
+
+def get_noise_noisy_latents_and_timesteps(args, noise_scheduler, latents, std_by_ts, mean_by_ts, timestep_probs):
+    # Sample a random timestep for each image
+    b_size = latents.shape[0]
+
+    timesteps = get_timesteps(args, noise_scheduler, timestep_probs, b_size, latents.device)
+    timesteps, huber_c = get_timesteps_and_huber_c(args, timesteps, noise_scheduler)
+
     # Sample noise that we'll add to the latents
-    noise = torch.randn_like(latents, device=latents.device)
+    if std_by_ts is not None:
+        channels = []
+        for t in timesteps:
+            for i in range(0, 4):
+                # mean = 0
+                std = std_by_ts[t][i][0][0]
+                mean = mean_by_ts[t][i][0][0]
+                channels.append(torch.empty((1, 1, latents.shape[2], latents.shape[3]), device=latents.device).normal_(mean=mean, std=std))
+        noise = torch.cat(channels, dim=0).reshape(latents.shape)
+    else:
+        noise = torch.randn_like(latents, device=latents.device)
     if args.noise_offset:
-        noise = custom_train_functions.apply_noise_offset(latents, noise, args.noise_offset, args.adaptive_noise_scale)
+        if args.noise_offset_random_strength:
+            noise_offset = torch.rand(1, device=latents.device) * args.noise_offset
+        else:
+            noise_offset = args.noise_offset
+        noise = custom_train_functions.apply_noise_offset(latents, noise, noise_offset, args.adaptive_noise_scale)
     if args.multires_noise_iterations:
         noise = custom_train_functions.pyramid_noise_like(
             noise, latents.device, args.multires_noise_iterations, args.multires_noise_discount
         )
 
-    # Sample a random timestep for each image
-    b_size = latents.shape[0]
-    min_timestep = 0 if args.min_timestep is None else args.min_timestep
-    max_timestep = noise_scheduler.config.num_train_timesteps if args.max_timestep is None else args.max_timestep
-
-    timesteps = torch.randint(min_timestep, max_timestep, (b_size,), device=latents.device)
-    timesteps = timesteps.long()
-
     # Add noise to the latents according to the noise magnitude at each timestep
     # (this is the forward diffusion process)
     if args.ip_noise_gamma:
-        noisy_latents = noise_scheduler.add_noise(latents, noise + args.ip_noise_gamma * torch.randn_like(latents),
-                                                  timesteps)
+        if args.ip_noise_gamma_random_strength:
+            strength = torch.rand(1, device=latents.device) * args.ip_noise_gamma
+        else:
+            strength = args.ip_noise_gamma
+        noisy_latents = noise_scheduler.add_noise(latents, noise + strength * torch.randn_like(latents), timesteps)
     else:
         noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
 
-    return noise, noisy_latents, timesteps
+    return noise, noisy_latents, timesteps, huber_c
+
+
+def conditional_loss(
+    model_pred: torch.Tensor, target: torch.Tensor, reduction: str = "mean", loss_type: str = "l2", huber_c: float = 0.1
+):
+    if loss_type == "l2":
+        loss = torch.nn.functional.mse_loss(model_pred, target, reduction=reduction)
+    elif loss_type == "huber":
+        loss = 2 * huber_c * (torch.sqrt((model_pred - target) ** 2 + huber_c ** 2) - huber_c)
+        if reduction == "mean":
+            loss = torch.mean(loss)
+        elif reduction == "sum":
+            loss = torch.sum(loss)
+    elif loss_type == "smooth_l1":
+        loss = 2 * (torch.sqrt((model_pred - target) ** 2 + huber_c ** 2) - huber_c)
+        if reduction == "mean":
+            loss = torch.mean(loss)
+        elif reduction == "sum":
+            loss = torch.sum(loss)
+    else:
+        raise NotImplementedError(f"Unsupported Loss Type {loss_type}")
+    return loss
 
 
 def append_lr_to_logs(logs, lr_scheduler, optimizer_type, including_unet=True):
@@ -5331,18 +5474,20 @@ class LossRecorder:
     def moving_average(self) -> float:
         return self.loss_total / len(self.loss_list)
 
+
 def noise_stats(noise):
-    diff = noise - noise.mean(dim=(1,2,3), keepdim=True)
-    std = noise.std(dim=(1,2,3))
+    diff = noise - noise.mean(dim=(1, 2, 3), keepdim=True)
+    std = noise.std(dim=(1, 2, 3))
     zscores = diff / std[:, None, None, None]
-    skews = (zscores**3).mean(dim=(1,2,3))
-    kurtoses = (zscores**4).mean(dim=(1,2,3)) - 3.0
+    skews = (zscores ** 3).mean(dim=(1, 2, 3))
+    kurtoses = (zscores ** 4).mean(dim=(1, 2, 3)) - 3.0
     return std, skews, kurtoses
+
 
 def stat_losses(noise, noise_pred, std_loss_weight=0.5, kl_loss_weight=3e-3, skew_loss_weight=0, kurtosis_loss_weight=0):
     std_loss = torch.nn.functional.mse_loss(
-        noise_pred.std(dim=(1,2,3)),
-        noise.std(dim=(1,2,3)),
+        noise_pred.std(dim=(1, 2, 3)),
+        noise.std(dim=(1, 2, 3)),
         reduction="none") * std_loss_weight
 
     skew_pred, kurt_pred = noise_stats(noise_pred)
