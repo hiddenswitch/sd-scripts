@@ -627,7 +627,19 @@ class NetworkTrainer:
         else:
             pass  # if text_encoder is not trained, no need to prepare. and device and dtype are already set
 
-        network, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(network, optimizer, train_dataloader, lr_scheduler)
+        use_schedule_free_optimizer = args.optimizer_type.lower().endswith("schedulefree")
+
+        network, optimizer, train_dataloader = accelerator.prepare(network, optimizer, train_dataloader)
+
+        if not use_schedule_free_optimizer:
+            lr_scheduler = accelerator.prepare(lr_scheduler)
+
+        if use_schedule_free_optimizer:
+            optimizer_train_if_needed = lambda: (optimizer.optimizer if hasattr(optimizer, "optimizer") else optimizer).train()
+            optimizer_eval_if_needed = lambda: (optimizer.optimizer if hasattr(optimizer, "optimizer") else optimizer).eval()
+        else:
+            optimizer_train_if_needed = lambda: None
+            optimizer_eval_if_needed = lambda: None
 
         if args.gradient_checkpointing:
             # according to TI example in Diffusers, train is required
@@ -1030,6 +1042,10 @@ class NetworkTrainer:
         scaled_mean_target_by_ts = scaled_mean_target_by_ts.to(dtype=weight_dtype, device=accelerator.device)
         timestep_probs           = timestep_probs.to(dtype=weight_dtype, device=accelerator.device)
 
+        if self.is_sdxl:
+            ts = 500
+            mean_target_by_ts[:ts, 3] = mean_target_by_ts[:ts, 3] * torch.arange(0, 1.0, 1 / ts, device=mean_target_by_ts.device).view(-1, 1, 1)
+
         # For --sample_at_first
         self.sample_images(accelerator, args, 0, global_step, accelerator.device, vae, tokenizer, text_encoder, unet)
 
@@ -1047,6 +1063,7 @@ class NetworkTrainer:
             alphas_cumprod = noise_scheduler.alphas_cumprod.to(accelerator.device)
             for step, batch in enumerate(train_dataloader):
                 step_logs = {}
+                optimizer_train_if_needed()
                 current_step.value = global_step
                 with accelerator.accumulate(network):
                     on_step_start(text_encoder, unet)
@@ -1069,6 +1086,8 @@ class NetworkTrainer:
                     max_mean_logs = {"Keys Scaled": keys_scaled, "Average key norm": mean_norm}
                 else:
                     keys_scaled, mean_norm, maximum_norm = None, None, None
+
+                optimizer_eval_if_needed()
 
                 # Checks if the accelerator has performed an optimization step behind the scenes
                 if accelerator.sync_gradients:
